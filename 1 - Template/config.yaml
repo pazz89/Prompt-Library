@@ -1,0 +1,40 @@
+---
+Embedding:
+    Arcane: 
+        Prompt: arcane style
+        Files: []
+    Analog: 
+        Prompt: analog style
+        Files: []
+
+Subject:
+    Astronaut:
+        Prompt: an astronaut riding a horse
+        Files: []
+    Horse:
+        Prompt: a horse riding an astronaut
+        Files: []
+    
+ 
+Details:  
+    Sunny:
+        Prompt: intricate, detailed, sunny
+        Files: []
+        
+    Cloudy:
+        Prompt: cloudy, dark, rainy
+        Files: []
+            
+Style:   
+    Art:
+        Prompt: painted by a master painter
+        Files: []
+    Photography:
+        Prompt: photographed by a master photographer
+        Files: []
+Negative:  
+    Ugly:
+        Prompt: ''
+        NegPrompt: ugly, disfigured
+        Files: []
+...
