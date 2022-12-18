@@ -26,6 +26,8 @@ class CategoryList:
         self.dat = data
         self.cat = cat
         self.changeCB = onselect
+        self.weightVal = StringVar()
+        self.weightVal.set('1.0')
         
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         
@@ -38,16 +40,18 @@ class CategoryList:
         self.lbox.configure(yscrollcommand=scrl.set)
         self.lbox.bind("<<ListboxSelect>>", lambda e: self.changeCB())
         sep = ttk.Separator(self.frame, orient=HORIZONTAL)
+        weight = ttk.Spinbox(self.frame, format="%.1f",increment=0.1,from_=0.0, to=10.0, textvariable=self.weightVal, width=5, command=self.changeCB)
         
         self.lbox.insert(0,"-")
         for idx, name in enumerate(self.dat[self.cat]):
             self.lbox.insert(idx+1,name)  
             
-        self.lbox.grid(column=0, row=1, columnspan=2, sticky=(N,S,E,W))
-        scrl.grid(column=2, row=1, sticky=(N,S,E,W))
+        self.lbox.grid(column=0, row=1, columnspan=3, sticky=(N,S,E,W))
+        scrl.grid(column=3, row=1, sticky=(N,S,E,W))
         
         lbl.grid(column=0, row=0, pady=0, sticky=(N,S,W))
-        self.dis.grid(column=1,row=0, sticky=(N,S,E), columnspan=2)
+        self.dis.grid(column=2,row=0, sticky=(N,S,E))
+        weight.grid(column=1,row=0, sticky=(N,S,E),padx=2)
         sep.grid(column=0,row=2, columnspan=3, sticky=(N,S,E,W), pady=5)
         
         self.frame.grid_columnconfigure(0, weight=1)
@@ -75,12 +79,18 @@ class CategoryList:
     def getName(self):
         return self.cat
     
+    def getPromptCount(self):
+        return len(self.dat[self.cat])
+    
     def getPrompt(self):
         i = self.lbox.curselection()
+        weight = self.weightVal.get()
         p = ''
         if len(i) > 0 and self.getDisabled() == False and i[0] > 0:
+            p += '' if weight =='1.0' else '('
             sel = self.lbox.get(i)
-            p = self.dat[self.cat][sel]["Prompt"]
+            p += self.dat[self.cat][sel]["Prompt"]
+            p += ':{0})'.format(weight) if weight != '1.0' else ''
         return p
     
     def getNegativePrompt(self):
@@ -172,7 +182,7 @@ class Set:
         for idx, cat in enumerate(struct):
             c = CategoryList(frame, struct, cat, self.listboxSelectionChanged)
             c.grid(column=0, row=idx, sticky=(N,W,E,S))
-            frame.grid_rowconfigure(idx,weight=1)
+            frame.grid_rowconfigure(idx,weight=c.getPromptCount())
             self.catList.append(c)
         
         self.pPreview = PromptPreview(frame)
