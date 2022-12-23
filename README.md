@@ -11,9 +11,9 @@ The option 'Auto Copy' allows to copy the current prompt to the clipboard on eve
 
 ## Future plans
 If time allows, I have plans to add:
-* ~~Prompt Editor to create and delete prompts from the interface instead manually editing the config.yaml~~
-* Preview function to display a preview of the currently selected prompt (exponential amount of images necessary though)
-* Rewrite for gradio to integrate as extension to https://github.com/AUTOMATIC1111/stable-diffusion-webui
+- [x] Prompt Editor to create and delete prompts from the interface instead manually editing the config.yaml
+- [ ] Preview function to display a preview of the currently selected prompt (exponential amount of images necessary though)
+- [ ] Rewrite for gradio to integrate as extension to https://github.com/AUTOMATIC1111/stable-diffusion-webui
 
 ## Installation
 * Make sure Python is installed on your Computer
