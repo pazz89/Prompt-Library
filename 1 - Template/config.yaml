@@ -22,6 +22,3 @@ Negative:
   Ugly:
     Prompt: ''
     NegPrompt: ugly, disfigured
-  Very Ugly:
-    Prompt: ''
-    NegPrompt: Yes this is against very ugly things
