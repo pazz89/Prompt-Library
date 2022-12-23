@@ -10,6 +10,7 @@ import time
 
 from tkinter import *
 from tkinter import ttk
+from tkinter import messagebox
 from tkinter import font
 
 import yaml
@@ -20,12 +21,14 @@ import os
 import os.path
 
 class CategoryList:
+    firstVal = "-"
     def __init__(self, root, data, cat, onselect):
+        self.root = root
         self.promptName = StringVar()
         self.disable = BooleanVar()
         self.dat = data
         self.cat = cat
-        self.changeCB = onselect
+        self.cb_change = onselect
         self.weightVal = StringVar()
         self.weightVal.set('1.0')
         
@@ -35,14 +38,20 @@ class CategoryList:
         scrl = ttk.Scrollbar(self.frame, orient=VERTICAL, command=self.lbox.yview)
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
-        lbl = ttk.Label(self.frame, text=cat,font=f)
+        lbl = ttk.Label(self.frame, text=self.cat,font=f)
         self.dis = ttk.Checkbutton(self.frame, text="Disable", variable=self.disable, onvalue=True, command=self.cb_disabled)
         self.lbox.configure(yscrollcommand=scrl.set)
-        self.lbox.bind("<<ListboxSelect>>", lambda e: self.changeCB())
+        self.lbox.bind("<<ListboxSelect>>", lambda e: self.cb_change())
+        self.lbox.bind("<Double-Button-1>", lambda e: self.cb_edit(self.lbox.get(self.lbox.curselection())))
         sep = ttk.Separator(self.frame, orient=HORIZONTAL)
-        weight = ttk.Spinbox(self.frame, format="%.1f",increment=0.1,from_=0.0, to=10.0, textvariable=self.weightVal, width=5, command=self.changeCB)
+        weight = ttk.Spinbox(self.frame, format="%.1f",increment=0.1,from_=0.0, to=10.0, textvariable=self.weightVal, width=5, command=self.cb_change)
         
-        self.lbox.insert(0,"-")
+        btnframe = ttk.Frame(self.frame)
+        btnAdd = ttk.Button(btnframe, text='+', command=self.cb_add,width=1)
+        btnDel = ttk.Button(btnframe, text='-',width=1)
+        btnDel.bind("<Button-1>", lambda e: self.cb_delete(self.lbox.get(self.lbox.curselection())))
+        
+        self.lbox.insert(0,self.firstVal)
         for idx, name in enumerate(self.dat[self.cat]):
             self.lbox.insert(idx+1,name)  
             
@@ -52,17 +61,69 @@ class CategoryList:
         lbl.grid(column=0, row=0, pady=0, sticky=(N,S,W))
         self.dis.grid(column=2,row=0, sticky=(N,S,E))
         weight.grid(column=1,row=0, sticky=(N,S,E),padx=2)
-        sep.grid(column=0,row=2, columnspan=3, sticky=(N,S,E,W), pady=5)
+        
+        btnframe.grid(column=4,row=1,rowspan=2,sticky=(N,E,W))
+        btnAdd.grid(column=0,row=0,sticky=(N,E,W))
+        btnDel.grid(column=0,row=1,sticky=(N,E,W))
+        sep.grid(column=0,row=2, columnspan=4, sticky=(N,S,E,W), pady=5)
         
         self.frame.grid_columnconfigure(0, weight=1)
         self.frame.grid_rowconfigure(1, weight=1)
         
+    def returnSelf(self):
+        return self.cat, self.dat[self.cat]
+        
     def relist(self, data):
         self.dat = data
         self.lbox.delete(0, END)
-        self.lbox.insert(0,"-")
+        self.lbox.insert(0,self.firstVal)
         for idx, name in enumerate(self.dat[self.cat]):
             self.lbox.insert(idx+1,name)  
+        self.cb_change()
+            
+    def cb_edit(self, prompt):
+        if prompt == self.firstVal:
+            return
+        idx = self.lbox.curselection()
+        promptVal = self.dat[self.cat][prompt]["Prompt"]
+        negPromptVal = self.dat[self.cat][prompt]["NegPrompt"] if "NegPrompt" in self.dat[self.cat][prompt] else ''
+        
+        isValid, newPrompt, newPromptVal, newNegPromptVal = PromptEdit(self.root).show(prompt, promptVal, negPromptVal)
+        if isValid:
+            self.dat[self.cat][prompt]["Prompt"] = newPromptVal
+            if newNegPromptVal:
+                self.dat[self.cat][prompt]["NegPrompt"] = {}
+                self.dat[self.cat][prompt]["NegPrompt"] = newNegPromptVal
+                
+            if "NegPrompt" in self.dat[self.cat][prompt]:
+                self.dat[self.cat][prompt]["NegPrompt"] = newNegPromptVal
+            
+            
+            self.dat[self.cat] = {newPrompt if k == prompt and newPrompt != prompt else k:v for k,v in self.dat[self.cat].items()}
+            self.relist(self.dat)
+            self.lbox.selection_set(idx)
+            self.cb_change(edited=True)
+    
+    def cb_add(self):
+        isValid, newPrompt, newPromptVal, newNegPromptVal =  PromptEdit(self.root).show('', '', '')
+        if isValid:
+            self.dat[self.cat][newPrompt] = {}
+            self.dat[self.cat][newPrompt]["Prompt"] = newPromptVal
+            self.relist(self.dat)
+            if newNegPromptVal:
+                self.dat[self.cat][newPrompt]["NegPrompt"] = {}
+                self.dat[self.cat][newPrompt]["NegPrompt"] = newNegPromptVal
+            self.lbox.selection_set(len(self.dat[self.cat]))
+            self.cb_change(edited=True)
+    
+    def cb_delete(self, prompt):
+        answer = messagebox.askyesno(title='Confirmation',
+                    message="Are you sure that you want to delete '{0}'?\n\n{1}".format(prompt, self.dat[self.cat][prompt]["Prompt"]))
+        if answer:
+            self.dat[self.cat].pop(prompt)
+            self.relist(self.dat)
+            self.cb_change(edited=True)
+    
     
     def grid(self, **kwargs):
         self.frame.grid(kwargs)
@@ -71,7 +132,7 @@ class CategoryList:
         d = self.disable.get()
         s = DISABLED if d == True else NORMAL
         self.lbox.configure(state=s) #Add this command after selection
-        self.changeCB()
+        self.cb_change()
         
     def getDisabled(self):
         return self.disable.get()
@@ -102,6 +163,57 @@ class CategoryList:
             if "NegPrompt" in i:
                 p = i["NegPrompt"]
         return p
+    
+class PromptEdit:
+    def __init__(self, root):
+        self.valid=False
+        self.dlg = Toplevel(root)
+        self.dlg.title("Edit Prompt")
+        
+        self.pName = StringVar()
+        self.p = StringVar()
+        self.np = StringVar()
+
+        ttk.Label(self.dlg, text="Name:").grid(row=0, columnspan=2, sticky=(N,S,W))
+        self.pNameVal = ttk.Entry(self.dlg, textvariable=self.pName)
+        self.pNameVal.grid(row=1, columnspan=2, sticky=(N,S,E,W))
+        
+        ttk.Label(self.dlg, text="Prompt:").grid(row=2, columnspan=2, sticky=(N,S,W))
+        self.pVal = ttk.Entry(self.dlg, textvariable=self.p)
+        self.pVal.grid(row=3, columnspan=2, sticky=(N,S,E,W))
+        
+        ttk.Label(self.dlg, text="Neg.Prompt:").grid(row=4, columnspan=2, sticky=(N,S,W))
+        self.npVal = ttk.Entry(self.dlg, textvariable=self.np)
+        self.npVal.grid(row=5, columnspan=2, sticky=(N,S,E,W))
+        
+        
+        ttk.Button(self.dlg, text="Confirm", command=self.confirm).grid(column=0,row=6)
+        ttk.Button(self.dlg, text="Cancel", command=self.dismiss).grid(column=1,row=6)
+        self.dlg.protocol("WM_DELETE_WINDOW", self.dismiss) # intercept close button
+        
+        self.dlg.grid_columnconfigure(0, weight=1)
+        self.dlg.grid_columnconfigure(1, weight=1)
+
+    def show(self, promptName, prompt, negPrompt):
+        
+        self.pNameVal.insert(0, promptName)
+        self.pVal.insert(0, prompt)
+        self.npVal.insert(0, negPrompt)
+        
+        self.dlg.wait_visibility() # can't grab until window appears, so we wait
+        self.dlg.grab_set()        # ensure all input goes to our window
+        self.dlg.wait_window()     # block until window is destroyed
+        
+        return (self.valid, self.pName.get(), self.p.get(), self.np.get())
+        
+    def dismiss(self):
+        self.dlg.grab_release()
+        self.dlg.destroy()
+        
+    def confirm(self):
+        self.valid = True
+        self.dismiss()
+
         
 
 class PromptPreview:
@@ -168,14 +280,14 @@ class PromptPreview:
                 
 
 class Set:
+    dirty = False
     def __init__(self, root, path):    
-        
         name = path.replace('.', '').replace('\\','')
-        filename = path + '\config.yaml'
+        self.filename = path + '\config.yaml'
         frame = ttk.Frame(root)
         root.add(frame, text=name)
         
-        with open(filename) as f:
+        with open(self.filename) as f:
             struct = yaml.load(f, Loader=SafeLoader)
             
         self.catList = []
@@ -189,20 +301,46 @@ class Set:
         self.pPreview.grid(column=2, row=0, rowspan=3, sticky=(N,W,E,S))
         
         ttk.Separator(frame, orient=VERTICAL).grid(column=1, row=0, rowspan=len(struct), sticky=(N,W,E,S))
-        frame.grid_columnconfigure(0, weight=1)
-        frame.grid_columnconfigure(2, weight=1)    
         
-    def listboxSelectionChanged(self):
+        self.saveBtn = ttk.Button(frame, text='Save', command=self.cb_save)
+        self.saveBtn.config(state=DISABLED)
+        self.saveBtn.grid(column=0)
+        
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(2, weight=1)  
+        
+    def cb_dirty(self):
+        self.dirty = True
+        self.saveBtn.config(state=NORMAL)
+        
+    def cb_save(self):
+        saveDict = {}
+        for idx, cat in enumerate(self.catList):
+            c, d = cat.returnSelf()
+            saveDict[c] = d
+        
+        with open(self.filename, 'w') as f:
+            yaml.dump(saveDict, f, sort_keys=False)
+            self.dirty = False
+            self.saveBtn.config(state=DISABLED)
+            for idx, cat in enumerate(self.catList):
+                cat.dirty = False
+        
+        
+    def listboxSelectionChanged(self, edited = False):
+        if edited:
+            self.cb_dirty()
+            
         pp = ''
         np = ''
         for c in self.catList:
             p = c.getPrompt()
             n = c.getNegativePrompt()
-            pp += p + "," if p else ''
-            np += n + "," if n else ''
+            pp += p + ", " if p else ''
+            np += n + ", " if n else ''
             
-        pp = pp.removesuffix(",")
-        np = np.removesuffix(",")
+        pp = pp.removesuffix(", ")
+        np = np.removesuffix(", ")
         pp += '\nNegative prompt: '+np if np else ''
         
         self.pPreview.setText(pp)
@@ -220,26 +358,75 @@ class Set:
                 mark = True
         
         self.pPreview.markNegPrompt()
-                
+
+class SetEdit:
+    def __init__(self, root, name):  
+        self.dlg = Toplevel(root)
+        self.dlg.title("Edit Set")
+        
+        
+        pass
+          
 def main():
+    
+    def on_closing():
+        
+        dirtySets = False
+        for s in sets:
+            if s.dirty:
+                dirtySets = True
+        
+        if dirtySets:
+            if messagebox.askokcancel("There are unsafed changes", "Discard Changes?"):
+                root.destroy()
+        else:
+            root.destroy()
+            
+    def on_edit():
+        pset = n.tab(n.select(), "text")
+        print(f"edit set {pset}")
+        pass
+    
+    def on_new():
+        print("new set")
+        pass
+    
+    def addSets(nb, selectIndex = 0):
+        
+        for pset in nb.tabs():
+            nb.forget(pset)
+                    
+        setNames = [x[0] for x in os.walk('.')]
+        del setNames[0]
+        sets = []
+        for s in setNames:
+            filename = s + '\config.yaml'
+            if os.path.isfile(filename):
+                sets.append(Set(nb,s))
+            else:
+                continue
+            
+        nb.select(selectIndex)
+        return sets
+        
+            
     root = Tk()
     root.title("Prompt Library")
     root.grid_columnconfigure(0, weight=1)
     root.grid_rowconfigure(0, weight=1)
+    root.protocol("WM_DELETE_WINDOW", on_closing)   
+    
+    menubar = Menu(root)
+    filemenu = Menu(menubar, tearoff=0)
+    filemenu.add_command(label="New", command=on_new)
+    filemenu.add_command(label="Edit", command=on_edit)
+    menubar.add_cascade(label="Sets", menu=filemenu)
+    root.config(menu=menubar)
+    
     n = ttk.Notebook(root)
     n.grid(sticky=(N,W,E,S))
-
-    setNames = [x[0] for x in os.walk('.')]
-    del setNames[0]
-
-    for s in setNames:
-        filename = s + '\config.yaml'
-        if os.path.isfile(filename):
-            Set(n,s)
-        else:
-            continue
-        
-        
+    sets = addSets(n, 0)
+                
     root.mainloop()
 
 if __name__ == "__main__":
