@@ -9,6 +9,14 @@ Here is a screenshot of the application:
 
 The option 'Auto Copy' allows to copy the current prompt to the clipboard on every selection change
 
+There is a Menubar with the options to add or edit a new set of prompt categories:
+The first fiels allows you to set the name of the set. Then follows an ordered list of the categories. With the next two fields a new category can be created using the insert button. An existing category can be update with a new name or a new index with the update button. To do so, select the category you want to edit (or doubleclick to preload to edit fields) and change name and/or index. The remove button removes a category. Changes are discarded if you exit via the window close button ([x]). Save overwrites the set in editing mode or creates a new directory in new mode.
+
+![Alt text](doc/PromptLibraryInterface_EditSet.png "Interface of Prompt-Library Edit Window")
+
+
+
+
 ## Future plans
 If time allows, I have plans to add:
 - [x] Prompt Editor to create and delete prompts from the interface instead manually editing the config.yaml
