@@ -281,11 +281,11 @@ class PromptPreview:
 
 class Set:
     dirty = False
-    def __init__(self, root, path):    
-        name = path.replace('.', '').replace('\\','')
+    def __init__(self, root, name):    
+        path = name
         self.filename = path + '\config.yaml'
         frame = ttk.Frame(root)
-        root.add(frame, text=name)
+        root.add(frame, text=path)
         
         with open(self.filename) as f:
             struct = yaml.load(f, Loader=SafeLoader)
@@ -360,12 +360,205 @@ class Set:
         self.pPreview.markNegPrompt()
 
 class SetEdit:
+    isValidEdit = False
     def __init__(self, root, name):  
-        self.dlg = Toplevel(root)
-        self.dlg.title("Edit Set")
+        
+        self.tl= Toplevel(root)
+        self.tl.title("Edit Set")
+        self.tl.grid_columnconfigure(0, weight=1)
+        self.tl.grid_rowconfigure(0, weight=1)  
+        
+        self.frame = ttk.Frame(self.tl, padding=(5, 5, 5, 5))
+        self.frame.grid(sticky=(N,S,E,W))
+        self.frame.grid_columnconfigure(1, weight=1)  
+        self.frame.grid_rowconfigure(1, weight=1)  
+        
+        if name != '':
+            self.path = name
+            self.filename = self.path + '\config.yaml'
+            
+            with open(self.filename) as f:
+                self.struct = yaml.load(f, Loader=SafeLoader)
+        else:
+            self.struct = {}
+            self.path = ''
+                
+        self.setName = StringVar()
+
+        ttk.Label(self.frame, text="Set Name:").grid(row=0, column=0, sticky=(N,S,W))
+        self.setNameVal = ttk.Entry(self.frame, textvariable=self.setName)
+        self.setNameVal.grid(row=0, column=1, sticky=(N,S,E,W))
+        self.setNameVal.insert(0, name)
+        
+        self.setContent = ttk.Treeview(self.frame)
+        self.setContent.grid(row=1,columnspan=2, sticky=(N,S,E,W))
+                
+        self.setContent['columns']= ('id', 'index')
+        self.setContent.column("#0", width=0,  stretch=NO)
+        self.setContent.column("id",anchor=W, width=80)
+        self.setContent.column("index",anchor=CENTER, width=70, stretch=NO)
+        
+        self.setContent.heading("#0",text="",anchor=CENTER)
+        self.setContent.heading("id",text="Name",anchor=CENTER)
+        self.setContent.heading("index",text="Index",anchor=CENTER)
+        
+        self.setContent.bind('<Double-1>', self.contentSelected)  
         
         
-        pass
+        inputFrame = ttk.Frame(self.frame, padding=(5, 5, 5, 5))
+        inputFrame.grid(row=2, columnspan=2, sticky=(N,S,E,W))
+        inputFrame.grid_columnconfigure(0, weight=1)  
+        
+        cName = Label(inputFrame,text="Name")
+        cName.grid(row=0,column=0, sticky=(N,S,E,W))
+
+        cIndex= Label(inputFrame,text="Index",width=1)
+        cIndex.grid(row=0,column=1, sticky=(N,S,E,W))
+
+        self.cNameEntry = Entry(inputFrame)
+        self.cNameEntry.grid(row=1,column=0, sticky=(N,S,E,W))
+
+        self.cIndexEntry = Entry(inputFrame)
+        self.cIndexEntry.grid(row=1,column=1, sticky=(N,S,E,W))
+
+        
+        
+        btnFrame = ttk.Frame(self.frame, padding=(5, 5, 5, 5))
+        btnFrame.grid(row = 3, columnspan=2,sticky=(S,E,W))
+        btnFrame.grid_columnconfigure(0, weight=1)
+        btnFrame.grid_columnconfigure(1, weight=1)
+        btnFrame.grid_columnconfigure(2, weight=1)
+        
+        self.insertBtn = ttk.Button(btnFrame, text='Insert', command=self.cb_insert)
+        self.insertBtn.grid(row=0,column=0)
+        
+        self.updateBtn = ttk.Button(btnFrame, text='Update Selected', command=self.cb_update)
+        self.updateBtn.grid(row=0,column=1)
+        
+        self.removeBtn = ttk.Button(btnFrame, text='Remove Selected', command=self.cb_remove)
+        self.removeBtn.grid(row=0,column=2)
+        
+        self.saveBtn = ttk.Button(btnFrame, text='Save', command=self.cb_save)
+        self.saveBtn.grid(row=0,column=3)
+        
+        self.updateList()
+        
+    def contentSelected(self, event):
+        self.cNameEntry.delete(0,END)
+        self.cIndexEntry.delete(0,END)
+        
+        sel = self.setContent.item(self.setContent.focus())
+        curName = sel['values'][0]
+        curIndex = sel['values'][1]
+        
+        self.cNameEntry.insert(0,curName)
+        self.cIndexEntry.insert(0,curIndex)        
+        
+        
+        
+    def show(self):
+        self.tl.wait_visibility() # can't grab until window appears, so we wait
+        self.tl.grab_set()        # ensure all input goes to our window
+        self.tl.wait_window()     # block until window is destroyed
+        return self.isValidEdit
+        
+    def updateList(self):        
+        self.cNameEntry.delete(0,END)
+        self.cIndexEntry.delete(0,END)
+        
+        self.setContent.delete(*self.setContent.get_children())
+        
+        for idx, cat in enumerate(self.struct):
+            self.setContent.insert(parent='',index='end',iid = idx,text='',values=(cat,idx))
+    
+    def reorder(self):
+        idx = self.cIndexEntry.get()
+        catName = self.cNameEntry.get()
+        
+        if idx == '':
+            return
+        
+        keyList = list(self.struct.keys())
+        keyList.remove(catName)
+        
+        keyList.insert(int(idx), catName)        
+        self.struct = {k: self.struct[k] for k in keyList}
+        
+        
+    def cb_insert(self):
+        catName = self.cNameEntry.get()
+        if catName == '':
+            return
+        
+        if catName in self.struct:
+            messagebox.showerror("Item already exists", "Can't add an item that already exists", parent=self.tl)
+            return
+        else:
+            self.struct[catName] = {}
+        
+        self.reorder()
+        self.updateList()
+        
+    def cb_update(self):
+        catName = self.cNameEntry.get()
+        if catName == '':
+            return
+        if self.setContent.focus() == '':
+            messagebox.showerror("No item selected", "You have to select an Item before you can update", parent=self.tl)
+            return
+        
+        sel = self.setContent.item(self.setContent.focus())
+        curItem = sel['values'][0]
+        
+        if catName in self.struct and catName != curItem:
+            messagebox.showerror("Item already exists", "Can't rename an item to an already existing item", parent=self.tl)
+        else:
+            self.struct = {catName if k == curItem else k:v for k,v in self.struct.items()}
+        
+        self.reorder()       
+        self.updateList()
+    
+    def cb_remove(self):
+        if self.setContent.focus() == '':
+            messagebox.showerror("No item selected", "You have to select an Item you want to remove", parent=self.tl)
+            return
+        
+        sel = self.setContent.item(self.setContent.focus())
+        curItem = sel['values'][0]
+        self.struct.pop(curItem)
+           
+        self.updateList()
+    
+    def cb_save(self):
+        
+        if self.path == '':
+            self.path = self.setName.get()
+            if os.path.exists(self.path):
+                messagebox.showerror("Save Error", "A set with this name already exists!", parent=self.tl)
+                return
+            
+            try:
+                os.mkdir(self.path)
+            except:
+                messagebox.showerror("Save Error", "Failed to create folder!", parent=self.tl)
+                return
+            
+            self.filename = self.path + '\config.yaml'
+            
+        
+        with open(self.filename, 'w') as f:
+            yaml.dump(self.struct, f, sort_keys=False)
+                        
+        if self.path != self.setName.get():
+            try:
+                os.rename(self.path, self.setName.get())
+            except:
+                messagebox.showerror("Save Error", "Failed to rename set!", parent=self.tl)
+                return
+                        
+        self.isValidEdit = True    
+        self.tl.grab_release()
+        self.tl.destroy()
           
 def main():
     
@@ -373,7 +566,7 @@ def main():
         
         dirtySets = False
         for s in sets:
-            if s.dirty:
+            if sets[s].dirty:
                 dirtySets = True
         
         if dirtySets:
@@ -384,12 +577,17 @@ def main():
             
     def on_edit():
         pset = n.tab(n.select(), "text")
-        print(f"edit set {pset}")
-        pass
+        if sets[pset].dirty:
+            messagebox.showerror("There are unsafed changes", "Changes have to be saved before a set can be edited")
+        else:
+            hasChanges = SetEdit(root, pset).show()
+            if hasChanges:
+                addSets(n,0)
     
     def on_new():
-        print("new set")
-        pass
+        hasChanges = SetEdit(root, '').show()
+        if hasChanges:
+            addSets(n,0)
     
     def addSets(nb, selectIndex = 0):
         
@@ -398,11 +596,12 @@ def main():
                     
         setNames = [x[0] for x in os.walk('.')]
         del setNames[0]
-        sets = []
+        sets = {}
         for s in setNames:
             filename = s + '\config.yaml'
             if os.path.isfile(filename):
-                sets.append(Set(nb,s))
+                name = s.replace('.', '').replace('\\','')
+                sets[name] = (Set(nb,name))
             else:
                 continue
             
