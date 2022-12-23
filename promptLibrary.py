@@ -20,6 +20,8 @@ import itertools
 import os
 import os.path
 
+from promptLibrary_preview import MissingPreviewList, SyncPreviewList
+
 class CategoryList:
     firstVal = "-"
     def __init__(self, root, data, cat, onselect):
@@ -69,9 +71,17 @@ class CategoryList:
         
         self.frame.grid_columnconfigure(0, weight=1)
         self.frame.grid_rowconfigure(1, weight=1)
+        self.lbox.selection_set(0)
         
     def returnSelf(self):
         return self.cat, self.dat[self.cat]
+    
+    def returnSelPrompt(self):
+        i = self.lbox.curselection()
+        c = ''
+        if len(i) > 0 and self.getDisabled() == False and i[0] > 0:
+            c = self.lbox.get(i)
+        return c
         
     def relist(self, data):
         self.dat = data
@@ -163,6 +173,11 @@ class CategoryList:
             if "NegPrompt" in i:
                 p = i["NegPrompt"]
         return p
+    
+    def isUnspecified(self):
+        i = self.lbox.curselection()
+        return self.getDisabled() == False and i[0] == 0
+        
     
 class PromptEdit:
     def __init__(self, root):
@@ -282,10 +297,10 @@ class PromptPreview:
 class Set:
     dirty = False
     def __init__(self, root, name):    
-        path = name
-        self.filename = path + '\config.yaml'
+        self.path = name
+        self.filename = self.path + '\config.yaml'
         frame = ttk.Frame(root)
-        root.add(frame, text=path)
+        root.add(frame, text=self.path)
         
         with open(self.filename) as f:
             struct = yaml.load(f, Loader=SafeLoader)
@@ -358,6 +373,30 @@ class Set:
                 mark = True
         
         self.pPreview.markNegPrompt()
+        
+        
+    def missingPreviews(self):
+        allData = {}
+        for idx, cat in enumerate(self.catList):
+            c, d = cat.returnSelf()
+            allData[c] = d
+            
+        previewData = {}
+        for cat in self.catList:
+            if cat.getDisabled() == False:
+                if cat.isUnspecified():
+                    c, d = cat.returnSelf()
+                    previewData[c] = d
+                else:
+                    c, d = cat.returnSelf()
+                    p = cat.returnSelPrompt()
+                    previewData[c] = {}
+                    previewData[c][p] = d[p]
+                    
+        SyncPreviewList(allData, self.path)
+        promptList = MissingPreviewList(previewData, self.path)
+        print(promptList)
+        print(f'ListSize: {len(promptList)}')
 
 class SetEdit:
     isValidEdit = False
@@ -588,6 +627,16 @@ def main():
         hasChanges = SetEdit(root, '').show()
         if hasChanges:
             addSets(n,0)
+            
+    def on_createPreviewList():
+        pset = n.tab(n.select(), "text")
+        if sets[pset].dirty:
+            messagebox.showerror("There are unsafed changes", "Changes have to be saved before list is generated")
+            return
+        
+        sets[pset].missingPreviews()
+        
+        
     
     def addSets(nb, selectIndex = 0):
         
@@ -619,6 +668,7 @@ def main():
     filemenu = Menu(menubar, tearoff=0)
     filemenu.add_command(label="New", command=on_new)
     filemenu.add_command(label="Edit", command=on_edit)
+    filemenu.add_command(label="Missing Previews", command=on_createPreviewList)
     menubar.add_cascade(label="Sets", menu=filemenu)
     root.config(menu=menubar)
     
