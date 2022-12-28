@@ -11,7 +11,7 @@ The option 'Auto Copy' allows to copy the current prompt to the clipboard on eve
 The two buttons on the right of each category allows to add or delete prompts. Doubleclick on an exisiting prompt allows to edit that prompt. Changes are safed to the config.yaml automatically. If the name of a prompt is changed, all previews connected to this prompt will be moved to the '_archive' folder.
 
 There is a Menubar with the options to add or edit a new set of prompt categories:
-The first fiels allows you to set the name of the set. Then follows an ordered list of the categories. With the next two fields a new category can be created using the insert button. An existing category can be update with a new name or a new index with the update button. To do so, select the category you want to edit (or doubleclick to preload to edit fields) and change name and/or index. The remove button removes a category. Changes are discarded if you exit via the window close button ([x]). Save overwrites the set in editing mode or creates a new directory in new mode. If the name of a category is changed, all previews connected to this category will be moved to the '_archive' folder.
+The first field allows you to set the name of the set. Then follows an ordered list of the categories. With the next two fields a new category can be created using the insert button. An existing category can be update with a new name or a new index with the update button. To do so, select the category you want to edit (or doubleclick to preload to edit fields) and change name and/or index. The remove button removes a category. Changes are discarded if you exit via the window close button ([x]). Save overwrites the set in editing mode or creates a new directory in new mode. If the name of a category is changed, all previews connected to this category will be moved to the '_archive' folder.
 
 ![Alt text](doc/PromptLibraryInterface_EditSet.png "Interface of Prompt-Library Edit Window")
 
@@ -23,17 +23,17 @@ To create previews for your prompt combination, automatic1111's webui can be use
 The script is based on the 'prompts_from_file.py' script.
 
 Options:
-- Use same seed for all previews: All previews will be generated with the same seed
-- Save to web ui instead of prompt library: Use the prompt library to create images like you normaly would. They are stored to your webui output folder instead of the Prompt Library '_preview' folder
-- Prompt Library Directory: Path to the folder where your config.yaml is stored
+- **Use same seed for all previews:** All previews will be generated with the same seed
+- **Save to web ui instead of prompt library:** Use the prompt library to create images like you normaly would. They are stored to your webui output folder instead of the Prompt Library '_preview' folder
+- **Prompt Library Directory:** Path to the folder where your config.yaml is stored
 
 Batch size can be used to create different previews at the same time. Batch count is ignored.
 
-In order for this script to work, you have to generate a prompt list from the Prompt Library Menu 'Preview'. Only the prompts for the current selection will be generated. If you want previews for all prompts in a category, select the first "empty" prompt ('-'). If you only want one specific prompt from a category, select it. If you don't want to create previews for this category, set the Disable checkbox.
+In order for this script to work, you have to generate a prompt list from the Prompt Library Menu **Preview**. Only the prompts for the current selection will be generated. If you want previews for all prompts in a category, select the first "empty" prompt ('-'). If you only want one specific prompt from a category, select it. If you don't want to create previews for this category, set the Disable checkbox.
 
-Two prompt lists can be genarated:
-- Create List of missing previews: Only prompts are generated for combinations without preview yet
-- Create List of all previews: All combination for the current selection will be generated
+Two options to generate prompt lists are available:
+- **Create List of missing previews:** Only prompts are generated for combinations without preview yet
+- **Create List of all previews:** All combination for the current selection will be generated
 
 Keep in mind, that the combination count grows exponentially with every category and prompt. 4 categories with 2 prompts each will result in `3*3*3*3 - 1 = 80` combinations (2 prompts + 1 without this category)
 
