@@ -249,7 +249,8 @@ class PromptEdit:
         
 
 class PromptPreview:
-    def __init__(self, root):
+    def __init__(self, root, cb_copyWith):
+        self.copyCB = cb_copyWith
         self.acpy = BooleanVar()
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         self.promptText = Text(self.frame, width=40, height=10,wrap = "word")    
@@ -259,15 +260,18 @@ class PromptPreview:
         lbl = ttk.Label(self.frame, text="Prompt", font=f)
         self.promptText.configure(yscrollcommand=scrl.set)
         self.cpyBtn = ttk.Button(self.frame, text='Copy', command=self.copy)
+        self.cpyWBtn = ttk.Button(self.frame, text='Copy with Preview Parameters', command=self.copyWith)
         self.autoCpy = ttk.Checkbutton(self.frame, text="Auto Copy", variable=self.acpy, onvalue=True)
         
         lbl.grid(column=0, row=0, pady=0, sticky=(N,S,W))
         self.promptText.grid(column=0, row=1, sticky=(N,S,E,W), columnspan=3)
         scrl.grid(column=3, row=1, sticky=(N,S,E,W))
         self.cpyBtn.grid(column=0,row=2, sticky=(N,S,E,W), pady=5)
+        self.cpyWBtn.grid(column=1,row=2, sticky=(N,S,E,W), pady=5)
         self.autoCpy.grid(column=2,row=2, sticky=(N,S,E,W), pady=5, columnspan=2)
         
-        self.frame.grid_columnconfigure(0, weight=1)
+        self.frame.grid_columnconfigure(0, weight=2)
+        self.frame.grid_columnconfigure(1, weight=1)
         self.frame.grid_rowconfigure(1, weight=1)
         
         self.promptText.tag_configure('marked', background='light grey')
@@ -307,8 +311,16 @@ class PromptPreview:
         r.update()
         r.destroy()
         
+    def copyWith(self):        
+        s = self.promptText.get("1.0",END)
+        self.copyCB(s)
+        
     def setFocus(self):
-        self.cpyBtn.focus_set()
+        # self.cpyBtn.focus_set()
+        pass
+    
+    def getPrompt(self):
+        return self.promptText.get("1.0",END)
         
 class ImagePreview:
     imgIdx = 0
@@ -457,7 +469,22 @@ class ImagePreview:
         # self.canvas.create_image(0, 0, anchor=NW, image=self.img) 
         self.hasImage = True
         
-
+    def GetParameters(self):
+        if self.hasImage == False:
+            return ''
+        try:
+            file = self.imgPath + self.images[self.imgIdx-1][1]
+            imgOrig = Image.open(file)
+            
+            info = imgOrig.info
+            if 'parameters' in info:
+                lines = [x.strip() for x in info['parameters'].splitlines()]
+                return lines[-1]
+            else:
+                return ''
+        except:
+            return ''
+        
             
         
     def ClearImage(self):
@@ -498,7 +525,7 @@ class Set:
         
         ppFrame = ttk.Frame(frame)
         ppFrame.grid(column=2, row = 0, rowspan=len(struct), sticky=(N,W,E,S))
-        self.pPreview = PromptPreview(ppFrame)
+        self.pPreview = PromptPreview(ppFrame, self.copyWithPreviewPara)
         self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
         
         self.iPreview = ImagePreview(ppFrame, self.cb_imageDeleted, self.cb_imageSelectPrompts)
@@ -517,6 +544,17 @@ class Set:
         frame.grid_columnconfigure(2, weight=1)  
         
         SyncPreviewList(struct, self.path)
+        
+    def copyWithPreviewPara(self, prompt):
+        para = self.iPreview.GetParameters()
+        clip = prompt + para
+        
+        r = Tk()
+        r.withdraw()
+        r.clipboard_clear()
+        r.clipboard_append(clip)
+        r.update()
+        r.destroy()
         
     def cb_dirty(self):
         self.dirty = True
