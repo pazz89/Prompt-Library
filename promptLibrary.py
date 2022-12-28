@@ -337,8 +337,11 @@ class ImagePreview:
         self.lbl.grid(row=0,sticky=(N,S,E,W))
         
         self.canvas.bind("<Button-1>", self.NextImage)
+        self.canvas.bind("<Button-4>", self.NextImage)
         self.canvas.bind("<Button-2>", self.PreviousImage)
         self.canvas.bind("<Button-3>", self.PreviousImage)
+        self.canvas.bind("<Button-5>", self.PreviousImage)
+        self.canvas.bind("<MouseWheel>", self.ScrollImage)
 
         self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
@@ -386,6 +389,12 @@ class ImagePreview:
             h = ih * dw if dw < dh else ih * dh
             
             return int(w), int(h)
+        
+    def ScrollImage(self, event):
+        if event.delta > 0:
+            self.NextImage(event)
+        else:
+            self.PreviousImage(event)
         
     def NextImage(self, event):
         if self.hasImage == False:
