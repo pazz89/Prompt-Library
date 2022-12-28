@@ -338,6 +338,10 @@ class ImagePreview:
         self.delBtn.grid(row=0, sticky=(N,E,W))
         self.delBtn.config(state=DISABLED)
         
+        self.cpyBtn = ttk.Button(btnFrame, text='Copy', command=self.CopyImageSettings)
+        self.cpyBtn.grid(row=1, sticky=(N,E,W))
+        self.cpyBtn.config(state=DISABLED)
+        
         
                 
         
@@ -374,6 +378,7 @@ class ImagePreview:
     
     def SetImageSet(self, path, images):
         self.delBtn.config(state=NORMAL)
+        self.cpyBtn.config(state=NORMAL)
         self.imgPath = path
         self.images = images
         self.imgIdx = 1
@@ -392,12 +397,26 @@ class ImagePreview:
             addStyles = addStyles.removesuffix(", ")
             addStyles += ')'
             
-        self.lbl.config(text=f"Visual Reference - {self.imgIdx}/{len(self.images)} - Additional Styles: {addStylesCount} {addStyles}")
+        self.lbl.config(text=f"Visual Reference - {self.imgIdx}/{len(self.images)} - Additional Prompts: {addStylesCount} {addStyles}")
     
     def DeleteImage(self):    
         file = self.imgPath + self.images[self.imgIdx-1][1]
         os.remove(file)
         self.on_delete()
+        
+    def CopyImageSettings(self):
+        file = self.imgPath + self.images[self.imgIdx-1][1]
+        imgOrig = Image.open(file)
+        
+        info = imgOrig.info
+        if 'parameters' in info:   
+            s = info['parameters']
+            r = Tk()
+            r.withdraw()
+            r.clipboard_clear()
+            r.clipboard_append(s)
+            r.update()
+            r.destroy()
         
         
     def SetImage(self, fImg):
@@ -427,6 +446,7 @@ class ImagePreview:
         
     def ClearImage(self):
         self.delBtn.config(state=DISABLED)
+        self.cpyBtn.config(state=DISABLED)
         self.hasImage = False
         self.canvas.configure(image='')
         self.iInfo.config(state=NORMAL)
