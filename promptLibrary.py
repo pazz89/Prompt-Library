@@ -388,16 +388,18 @@ class ImagePreview:
             return int(w), int(h)
         
     def NextImage(self, event):
+        if self.hasImage == False:
+            return
         self.imgIdx = self.imgIdx + 1 if self.imgIdx + 1 <= len(self.images) else 1
         self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
         self.UpdateVisRefLabel()
-        pass
     
     def PreviousImage(self, event):
+        if self.hasImage == False:
+            return
         self.imgIdx = self.imgIdx - 1 if self.imgIdx - 1 > 0 else len(self.images)
         self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
         self.UpdateVisRefLabel()
-        pass
     
     def SetImageSet(self, path, images):
         self.delBtn.config(state=NORMAL)
@@ -408,7 +410,6 @@ class ImagePreview:
         self.imgIdx = 1
         self.UpdateVisRefLabel()
         self.SetImage(self.imgPath + self.images[0][1])
-        pass
     
     def UpdateVisRefLabel(self):
         addStyles = ''
@@ -540,6 +541,9 @@ class Set:
         self.saveBtn.config(state=DISABLED)
         # self.saveBtn.grid(column=0)
         
+        self.resetBtn = ttk.Button(frame, text='Reset Selection', command=self.cb_reset)
+        self.resetBtn.grid(column=0)
+        
         # frame.grid_columnconfigure(0, weight=1)
         frame.grid_columnconfigure(2, weight=1)  
         
@@ -595,6 +599,12 @@ class Set:
                     if c == cat.getName():
                         cat.selectByName(sel[c])
         self.listboxSelectionChanged()
+        
+    def cb_reset(self):
+        for cat in self.catList:
+            cat.selectByName(cat.firstVal)
+        self.listboxSelectionChanged()
+        
                 
     @timer   
     def listboxSelectionChanged(self, edited = False):
