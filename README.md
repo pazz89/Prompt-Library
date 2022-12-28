@@ -37,7 +37,7 @@ Two options to generate prompt lists are available:
 
 Keep in mind, that the combination count grows exponentially with every category and prompt. 4 categories with 2 prompts each will result in `3*3*3*3 - 1 = 80` combinations (2 prompts + 1 without this category)
 
-All images which contain the selected prompts will then be displayed. You can navigate through them with left and right mouseclick. They are sorted by how exactly they match the selection. Additional prompts from your categories which are used for the image but aren't selected, are shown in the title.
+All images which contain the selected prompts will then be displayed. You can navigate through them with left and right mouseclick or the mousewheel. They are sorted by how exactly they match the selection. Additional prompts from your categories which are used for the image but aren't selected, are shown in the title.
 
 As mentioned above, renaming prompts or categories will move all associated previews to the '_archive' folder. The delete button deletes the selected image permanently
 
