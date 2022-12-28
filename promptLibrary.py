@@ -306,10 +306,11 @@ class PromptPreview:
         
 class ImagePreview:
     imgIdx = 0
-    def __init__(self, root):
+    def __init__(self, root, cb_del):
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
         self.canvas.grid(row = 1,sticky=(N,S,E,W))
+        self.on_delete = cb_del
         
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
@@ -330,6 +331,14 @@ class ImagePreview:
         scrl = ttk.Scrollbar(self.frame, orient=VERTICAL, command=self.iInfo.yview)
         self.iInfo.configure(yscrollcommand=scrl.set)
         scrl.grid(column=1, row=2, sticky=(N,S,E,W))
+        
+        btnFrame = ttk.Frame(self.frame, padding=(5, 5, 5, 5))
+        btnFrame.grid(column=2,row=2, sticky=(N,E,W))
+        self.delBtn = ttk.Button(btnFrame, text='Delete', command=self.DeleteImage)
+        self.delBtn.grid(row=0, sticky=(N,E,W))
+        self.delBtn.config(state=DISABLED)
+        
+        
                 
         
     def _getSize(self, fw, fh, iw, ih):
@@ -364,6 +373,7 @@ class ImagePreview:
         pass
     
     def SetImageSet(self, path, images):
+        self.delBtn.config(state=NORMAL)
         self.imgPath = path
         self.images = images
         self.imgIdx = 1
@@ -383,6 +393,11 @@ class ImagePreview:
             addStyles += ')'
             
         self.lbl.config(text=f"Visual Reference - {self.imgIdx}/{len(self.images)} - Additional Styles: {addStylesCount} {addStyles}")
+    
+    def DeleteImage(self):    
+        file = self.imgPath + self.images[self.imgIdx-1][1]
+        os.remove(file)
+        self.on_delete()
         
         
     def SetImage(self, fImg):
@@ -411,6 +426,7 @@ class ImagePreview:
             
         
     def ClearImage(self):
+        self.delBtn.config(state=DISABLED)
         self.hasImage = False
         self.canvas.configure(image='')
         self.iInfo.config(state=NORMAL)
@@ -448,7 +464,7 @@ class Set:
         self.pPreview = PromptPreview(ppFrame)
         self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
         
-        self.iPreview = ImagePreview(ppFrame)
+        self.iPreview = ImagePreview(ppFrame, self.cb_imageDeleted)
         self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
         ppFrame.grid_columnconfigure(0, weight=1)
         # ppFrame.grid_rowconfigure(0, weight=1)
@@ -488,6 +504,15 @@ class Set:
             os.remove(self.path + "\promptList.txt")
         except:
             pass
+        
+    def cb_imageDeleted(self):
+        data = {}
+        for idx, cat in enumerate(self.catList):
+            c, d = cat.returnSelf()
+            data[c] = d
+        SyncPreviewList(data, self.path)
+        self.listboxSelectionChanged()
+        
                 
     @timer   
     def listboxSelectionChanged(self, edited = False):
