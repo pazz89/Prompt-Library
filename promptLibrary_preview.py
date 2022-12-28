@@ -239,10 +239,9 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 finalPrompt['negative_prompt'] = nprompt
                 
                 try:
-                    exclusivity = min(PreviewExlusivityCore(catList, previewData, commonFiles))
+                    exclusivity = min(PreviewExlusivityCore(catList, previewData, commonFiles)[0])
                 except:
                     exclusivity = -1
-                    
                 trgt.update(finalPrompt)
                 if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
                     promptList.append(trgt)
