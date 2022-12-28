@@ -11,6 +11,21 @@ from yaml.loader import SafeLoader
 import os
 import os.path
 
+import functools
+import time
+
+def timer(func):
+    """Print the runtime of the decorated function"""
+    @functools.wraps(func)
+    def wrapper_timer(*args, **kwargs):
+        start_time = time.perf_counter()    # 1
+        value = func(*args, **kwargs)
+        end_time = time.perf_counter()      # 2
+        run_time = end_time - start_time    # 3
+        # print(f"Finished {func.__name__!r} in {run_time:.4f} secs")
+        return value
+    return wrapper_timer
+
 def SyncPreviewList(promptData, path):
     
     filename = path + '\previews.yaml'
@@ -45,40 +60,63 @@ def SyncPreviewList(promptData, path):
     for cat in list(previewData):
         if cat not in promptData:
             for prompt in list(previewData[cat]):
-                unlistedPreviewCandidates.append(previewData[cat][prompt]["Files"])
+                unlistedPreviewCandidates += previewData[cat][prompt]["Files"]
             previewData.pop(cat)
         else:
             for prompt in list(previewData[cat]):
                 if prompt not in promptData[cat]:
-                    unlistedPreviewCandidates.append(previewData[cat][prompt]["Files"])
+                    unlistedPreviewCandidates += previewData[cat][prompt]["Files"]
                     previewData[cat].pop(prompt)
                     
     # verify if legacy prompts had previews attached which are not needed anymore                
     VerifyPreviewListing(unlistedPreviewCandidates, previewData, path)     
                
     with open(filename, 'w') as f:
-        yaml.dump(previewData, f, sort_keys=False)                 
+        yaml.dump(previewData, f, sort_keys=False)    
+        
+    DeleteRefToMissingImages(path)
+        
+def DeleteRefToMissingImages(path):
+    filename = path + '\previews.yaml'
+    picsPath = path + '\_previews\\'
+    try:
+        with open(filename) as f:
+            previewData = yaml.load(f, Loader=SafeLoader)
+            for cat in previewData:
+                for prompt in previewData[cat]:
+                    for f in list(previewData[cat][prompt]["Files"]):
+                        if os.path.isfile(picsPath + f) == False:
+                            previewData[cat][prompt]["Files"].remove(f)
+            
+         
+        with open(filename, 'w') as f:
+            yaml.dump(previewData, f, sort_keys=False)      
+                         
+    except:
+        pass
+     
             
 def VerifyPreviewListing(unlistedPreviewCandidates, previewData, path):
     
-    for img in unlistedPreviewCandidates:
-        for cat in previewData:
-            for prompt in previewData[cat]:
-                for f in previewData[cat][prompt]["Files"]:
-                    if img == f:
-                        unlistedPreviewCandidates.remove(img)
+    # for img in unlistedPreviewCandidates:
+    #     for cat in previewData:
+    #         for prompt in previewData[cat]:
+    #             for f in previewData[cat][prompt]["Files"]:
+    #                 if img == f:
+    #                     unlistedPreviewCandidates.remove(img)
                         
     picsPath = path + '\_previews'
     archivePath = picsPath + '\_archive'
     try:
+        os.mkdir(picsPath)
         os.mkdir(archivePath)
     except:
         pass
-             
+       
     for img in unlistedPreviewCandidates:
-        os.replace('{}\{}'.format(picsPath, img), '{}\{}'.format(archivePath, img))
+        os.replace('{}\{}'.format(picsPath, img), '{}\{}'.format(archivePath, img.replace('\\','_')))
         
-        
+@timer        
 def PreviewFiles(promptData, path):
     filename = path + '\previews.yaml'
     with open(filename) as f:
@@ -93,25 +131,29 @@ def PreviewFiles(promptData, path):
             return []
     return list(commonFiles)
 
-def PreviewExlusivity(promptData, path, file):
+@timer
+def PreviewExlusivity(promptData, path, files):
     filename = path + '\previews.yaml'
     with open(filename) as f:
         previewData = yaml.load(f, Loader=SafeLoader)
     
-    
-    exCount = 0    
+    return PreviewExlusivityCore(promptData, previewData, files)
+        
+def PreviewExlusivityCore(promptData, previewData, files):     
+    exCount = [0] * len(files)     
+    exStyles = [ [] for _ in range(len(files)) ]
     for c in previewData:
         if c in promptData:
             continue
         for p in previewData[c]:
-            if file in previewData[c][p]["Files"]:
-                exCount += 1
+            for idx,f in enumerate(files):
+                if f in previewData[c][p]["Files"]:
+                    exCount[idx] += 1
+                    exStyles[idx].append({c:p})
     
-    return exCount
-        
-            
+    return exCount, exStyles     
                              
-
+@timer
 def PreviewList(promptData, path, missingOnly, fileList = False):
     
     filename = path + '\previews.yaml'
@@ -185,22 +227,27 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 nprompt = nprompt.removesuffix(", ")
                 
                 # create list for which prompts this picture will be generated if not already available
-                target = '('
-                for l in range(0,len(catList)):
-                    target += "{" + catList[l] + ","+p[l] +"}, "
-                target = target.removesuffix(", ")
-                target += ')'
-                
+                  
                 trgt = {}
+                trgt['cat'] = {}
                 for l in range(0,len(catList)):
-                    trgt[catList[l]] = p[l]
+                    trgt['cat'][catList[l]] = p[l]
                     
-                finalPrompt = f"--prompt '{prompt}' --negative_prompt '{nprompt}'"
+                # finalPrompt = f"--prompt '{prompt}' --negative_prompt '{nprompt}'"
+                finalPrompt = {}
+                finalPrompt['prompt'] = prompt
+                finalPrompt['negative_prompt'] = nprompt
                 
-                if len(commonFiles) == 0 or missingOnly == False:
-                    promptList.append((trgt, finalPrompt))
+                try:
+                    exclusivity = min(PreviewExlusivityCore(catList, previewData, commonFiles))
+                except:
+                    exclusivity = -1
+                    
+                trgt.update(finalPrompt)
+                if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
+                    promptList.append(trgt)
                 
-    if commonFiles:
+    if fileList:
         return commonFiles
     else:
         return promptList

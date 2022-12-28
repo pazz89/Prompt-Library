@@ -5,6 +5,10 @@ import random
 import sys
 import traceback
 import shlex
+import json
+
+import yaml
+from yaml.loader import SafeLoader
 
 import modules.scripts as scripts
 import gradio as gr
@@ -114,49 +118,40 @@ class Script(scripts.Script):
 
     def ui(self, is_img2img):
         checkbox_same_seed = gr.Checkbox(label="Use same seed for all previews", value=False)
+        save_to_webui = gr.Checkbox(label="Save to web ui instead of prompt library", value=False)
 
-        prompt_txt = gr.Textbox(label="List of prompt inputs", lines=1)
-        file = gr.File(label="Upload prompt inputs", type='bytes')
+        libraryPath = gr.Textbox(label="Prompt Library Directory",
+                                 placeholder="Absolute Path to the Sub-Directory of the Prompt Library")
 
-        file.change(fn=load_prompt_file, inputs=[file], outputs=[file, prompt_txt, prompt_txt])
+        return [checkbox_same_seed, save_to_webui, libraryPath]
 
-        # We start at one line. When the text changes, we jump to seven lines, or two lines if no \n.
-        # We don't shrink back to 1, because that causes the control to ignore [enter], and it may
-        # be unclear to the user that shift-enter is needed.
-        prompt_txt.change(lambda tb: gr.update(lines=7) if ("\n" in tb) else gr.update(lines=2), inputs=[prompt_txt], outputs=[prompt_txt])
-        return [checkbox_same_seed, prompt_txt]
-
-    def run(self, p, checkbox_same_seed, prompt_txt: str):
-        lines = [x.strip() for x in prompt_txt.splitlines()]
-        lines = [x for x in lines if len(x) > 0]
-
-        p.do_not_save_samples = True
-        p.do_not_save_grid = True
+    def run(self, p, checkbox_same_seed, save_to_webui, libraryPath: str):        
+        promptList = libraryPath + "\promptList.txt"
+        previewFile = libraryPath + "\previews.yaml"
+        previewPath = libraryPath + "\_previews"
+        
+        assert os.path.isfile(promptList), f'missing list for preview generation'
+        assert os.path.isfile(previewFile), f'missing preview file'
+        
+        with open(promptList, 'r') as f:     
+            s = f.read()
+            jobs = json.loads(s)
+            
+        with open(previewFile, 'r') as f:
+            previewData = yaml.load(f, Loader=SafeLoader)
+        
+        if save_to_webui:
+            p.do_not_save_samples = False
+            p.do_not_save_grid = False
+        else:
+            p.do_not_save_samples = True
+            p.do_not_save_grid = True
         p.n_iter = 1
 
-        job_count = 0
-        jobs = []
-
-        for line in lines:
-            if "--" in line:
-                try:
-                    args = cmdargs(line)
-                except Exception:
-                    print(f"Error parsing line {line} as commandline:", file=sys.stderr)
-                    print(traceback.format_exc(), file=sys.stderr)
-                    args = {"prompt": line}
-            else:
-                args = {"prompt": line}
-
-            n_iter = args.get("n_iter", 1)
-            if n_iter != 1:
-                job_count += n_iter
-            else:
-                job_count += 1
-
-            jobs.append(args)
+        job_count = len(jobs)           
+            
         totIteration = math.ceil(job_count / p.batch_size)
-        print(f"Will process {len(lines)} previews in {totIteration} jobs.")
+        print(f"Will process {job_count} previews in {totIteration} jobs.")
         if p.seed == -1:
             p.seed = int(random.randrange(4294967294))
 
@@ -165,6 +160,7 @@ class Script(scripts.Script):
         imgs = []
         all_prompts = []
         infotexts = []
+        all_seeds = []
         
         batch_count = math.floor(job_count / p.batch_size)
         batch_reamin = job_count - (batch_count * p.batch_size)
@@ -193,18 +189,38 @@ class Script(scripts.Script):
                 else:
                     p.seed.append(seedInit + j)
                 p.batch_size +=1  
+                
             print(f"\nPreview {batchStart} to {batchEnd} of {job_count}")    
             state.job = f"{state.job_no + 1} out of {state.job_count}" 
+            
             proc = process_images(p)
             
             if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
-                imgs.append(images.image_grid(proc.images))
+                
+                if save_to_webui:
+                    imgs += proc.images
+                else:
+                    imgs.append(images.image_grid(proc.images))
+                    
                 all_prompts += proc.all_prompts
                 infotexts += proc.infotexts
-                basename = "plib_"
-                for i in range(len(proc.images)):
-                    print(images.save_image(proc.images[i], p.outpath_samples + "\\promptLibrary", basename,
-                    p.seed[i], p.prompt[i], opts.samples_format, info= proc.info, p=p))
+                all_seeds += p.seed
+                if save_to_webui == False:
+                    basename = "plib_"
+                    assert len(proc.images) == batchEnd-batchStart, f'failure on image generation'
+                    for i, j in zip(range(len(proc.images)),range(batchStart, batchEnd)):
+                        ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
+                        
+                        for ct in jobs[j]["cat"]:
+                            relFName = ifName.replace(previewPath, '')
+                            prmpt = jobs[j]["cat"][ct]
+                            previewData[ct][prmpt]['Files'].append(relFName)
+                    
+                    with open(previewFile, 'w') as f:
+                        yaml.dump(previewData, f, sort_keys=False)       
+                    
             else:
                 break;
-        return Processed(p, imgs, p.seed, "", all_prompts=all_prompts, infotexts=infotexts)
+                
+                
+        return Processed(p, imgs, seedInit, "", all_prompts=all_prompts, infotexts=infotexts, all_seeds=all_seeds)

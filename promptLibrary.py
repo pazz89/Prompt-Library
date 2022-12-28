@@ -16,12 +16,13 @@ from PIL import ImageTk, Image
 
 import yaml
 from yaml.loader import SafeLoader
+import json
 import itertools
 
 import os
 import os.path
 
-from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity
+from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity, timer, DeleteRefToMissingImages
 
 class CategoryList:
     firstVal = "-"
@@ -304,6 +305,7 @@ class PromptPreview:
         self.cpyBtn.focus_set()
         
 class ImagePreview:
+    imgIdx = 0
     def __init__(self, root):
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
@@ -311,9 +313,13 @@ class ImagePreview:
         
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
-        lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
-        lbl.grid(row=0,sticky=(N,S,E,W))
+        self.lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
+        self.lbl.grid(row=0,sticky=(N,S,E,W))
         
+        self.canvas.bind("<Button-1>", self.NextImage)
+        self.canvas.bind("<Button-2>", self.PreviousImage)
+        self.canvas.bind("<Button-3>", self.PreviousImage)
+
         self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
         self.hasImage = False
@@ -345,6 +351,38 @@ class ImagePreview:
             
             return int(w), int(h)
         
+    def NextImage(self, event):
+        self.imgIdx = self.imgIdx + 1 if self.imgIdx + 1 <= len(self.images) else 1
+        self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
+        self.UpdateVisRefLabel()
+        pass
+    
+    def PreviousImage(self, event):
+        self.imgIdx = self.imgIdx - 1 if self.imgIdx - 1 > 0 else len(self.images)
+        self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
+        self.UpdateVisRefLabel()
+        pass
+    
+    def SetImageSet(self, path, images):
+        self.imgPath = path
+        self.images = images
+        self.imgIdx = 1
+        self.UpdateVisRefLabel()
+        self.SetImage(self.imgPath + self.images[0][1])
+        pass
+    
+    def UpdateVisRefLabel(self):
+        addStyles = ''
+        addStylesCount = self.images[self.imgIdx-1][0]
+        if addStylesCount > 0:
+            addStyles = '('
+            for style in self.images[self.imgIdx-1][2]:
+                for k in style:
+                    addStyles += f'{k}/{style[k]}, '
+            addStyles = addStyles.removesuffix(", ")
+            addStyles += ')'
+            
+        self.lbl.config(text=f"Visual Reference - {self.imgIdx}/{len(self.images)} - Additional Styles: {addStylesCount} {addStyles}")
         
         
     def SetImage(self, fImg):
@@ -378,6 +416,7 @@ class ImagePreview:
         self.iInfo.config(state=NORMAL)
         self.iInfo.delete("1.0","end")
         self.iInfo.config(state=DISABLED)
+        self.lbl.config(text=f"Visual Reference")
         
 
     def grid(self, **kwargs):
@@ -390,9 +429,10 @@ class Set:
     def __init__(self, root, name):    
         self.path = name
         self.filename = self.path + '\config.yaml'
+        self.Previewfilename = self.path + '\previews.yaml'
         frame = ttk.Frame(root)
         root.add(frame, text=self.path)
-        
+        DeleteRefToMissingImages(self.path)
         with open(self.filename) as f:
             struct = yaml.load(f, Loader=SafeLoader)
             
@@ -418,14 +458,17 @@ class Set:
         
         self.saveBtn = ttk.Button(frame, text='Save', command=self.cb_save)
         self.saveBtn.config(state=DISABLED)
-        self.saveBtn.grid(column=0)
+        # self.saveBtn.grid(column=0)
         
         # frame.grid_columnconfigure(0, weight=1)
         frame.grid_columnconfigure(2, weight=1)  
         
+        SyncPreviewList(struct, self.path)
+        
     def cb_dirty(self):
         self.dirty = True
         self.saveBtn.config(state=NORMAL)
+        self.cb_save()
         
     def cb_save(self):
         saveDict = {}
@@ -439,8 +482,14 @@ class Set:
             self.saveBtn.config(state=DISABLED)
             for idx, cat in enumerate(self.catList):
                 cat.dirty = False
-        
-        
+                
+        SyncPreviewList(saveDict, self.path)
+        try:
+            os.remove(self.path + "\promptList.txt")
+        except:
+            pass
+                
+    @timer   
     def listboxSelectionChanged(self, edited = False):
         if edited:
             self.cb_dirty()
@@ -478,21 +527,20 @@ class Set:
         commonFiles = PreviewFiles(selDict, self.path)
         
         # Sorty by Exclusivity
-        commonFilesExcl = []
-        for f in commonFiles:
-            commonFilesExcl.append(PreviewExlusivity(selDict, self.path, f))
+        commonFilesExcl, addStyles = PreviewExlusivity(selDict, self.path, commonFiles)
         
-        commonFiles = [x for _,x in sorted(zip(commonFilesExcl,commonFiles))]
+        # commonFiles = [x for _,x in sorted(zip(commonFilesExcl,commonFiles))]
+        commonFiles = sorted(zip(commonFilesExcl,commonFiles,addStyles))
+        
+        # print(f'Found {len(commonFiles)} Files with exclusivities: {[x[0] for x in commonFiles]}')
         if len(commonFiles) > 0:
-            preview = self.path + '\_previews\\' + commonFiles[0]
-            self.iPreview.SetImage(preview)
+            self.iPreview.SetImageSet(self.path + '\_previews\\', commonFiles)
         else:
             self.iPreview.ClearImage()
             
-            
+             
         
-        
-    def missingPreviews(self):
+    def createPreviewList(self, missing):
         allData = {}
         for idx, cat in enumerate(self.catList):
             c, d = cat.returnSelf()
@@ -512,12 +560,13 @@ class Set:
                     previewData[c][p]['dontIgnore'] = True
                     
         SyncPreviewList(allData, self.path)
-        promptList = PreviewList(previewData, self.path, True)
+        promptList = PreviewList(previewData, self.path, missing)
         # print(promptList)
         with open(self.path + "\promptList.txt", 'w') as f:
-            for p in promptList:
-                f.write(f"{p[1]}"+'\n')
-        print(f'ListSize: {len(promptList)}')
+            j = json.dumps(promptList)
+            f.write(j)
+            
+        messagebox.showinfo("Prompt File created", f"Prompt File for {len(promptList)} previews created!")
 
 class SetEdit:
     isValidEdit = False
@@ -712,16 +761,23 @@ class SetEdit:
         if self.path != self.setName.get():
             try:
                 os.rename(self.path, self.setName.get())
+                self.path = self.setName.get()
             except:
                 messagebox.showerror("Save Error", "Failed to rename set!", parent=self.tl)
                 return
-                        
+            
+        SyncPreviewList(self.struct, self.path)
+        try:
+            os.remove(self.path + "\promptList.txt")
+        except:
+            pass
+                
         self.isValidEdit = True    
         self.tl.grab_release()
         self.tl.destroy()
           
 def main():
-    
+    global sets
     def on_closing():
         
         dirtySets = False
@@ -737,25 +793,34 @@ def main():
             
     def on_edit():
         pset = n.tab(n.select(), "text")
+        global sets
         if sets[pset].dirty:
             messagebox.showerror("There are unsafed changes", "Changes have to be saved before a set can be edited")
         else:
             hasChanges = SetEdit(root, pset).show()
             if hasChanges:
-                addSets(n,0)
+                sets = addSets(n,0)
     
     def on_new():
+        global sets
         hasChanges = SetEdit(root, '').show()
         if hasChanges:
-            addSets(n,0)
+            sets = addSets(n,0)
             
-    def on_createPreviewList():
+    def on_createPreviewListMissing():
+        on_createPreviewList(True)
+        
+    def on_createPreviewListAll():
+        on_createPreviewList(False)
+        
+            
+    def on_createPreviewList(missing):
         pset = n.tab(n.select(), "text")
         if sets[pset].dirty:
             messagebox.showerror("There are unsafed changes", "Changes have to be saved before list is generated")
             return
         
-        sets[pset].missingPreviews()
+        sets[pset].createPreviewList(missing)
         
         
     
@@ -766,17 +831,18 @@ def main():
                     
         setNames = [x[0] for x in os.walk('.')]
         del setNames[0]
-        sets = {}
+        setNames = [x for x in os.listdir('.') if os.path.isdir(x)]
+        st = {}
         for s in setNames:
             filename = s + '\config.yaml'
             if os.path.isfile(filename):
                 name = s.replace('.', '').replace('\\','')
-                sets[name] = (Set(nb,name))
+                st[name] = (Set(nb,name))
             else:
                 continue
             
         nb.select(selectIndex)
-        return sets
+        return st
         
             
     root = Tk()
@@ -785,17 +851,21 @@ def main():
     root.grid_rowconfigure(0, weight=1)
     root.protocol("WM_DELETE_WINDOW", on_closing)   
     
-    menubar = Menu(root)
-    filemenu = Menu(menubar, tearoff=0)
-    filemenu.add_command(label="New", command=on_new)
-    filemenu.add_command(label="Edit", command=on_edit)
-    filemenu.add_command(label="Missing Previews", command=on_createPreviewList)
-    menubar.add_cascade(label="Sets", menu=filemenu)
-    root.config(menu=menubar)
-    
     n = ttk.Notebook(root)
     n.grid(sticky=(N,W,E,S))
     sets = addSets(n, 0)
+    
+    menubar = Menu(root)
+    filemenu = Menu(menubar, tearoff=0)
+    previewmenu = Menu(menubar, tearoff=0)
+    filemenu.add_command(label="New", command=on_new)
+    filemenu.add_command(label="Edit", command=on_edit)
+    previewmenu.add_command(label="Create list of missing previews (from selection)", command=on_createPreviewListMissing)
+    previewmenu.add_command(label="Create list of all previews (from selection)", command=on_createPreviewListAll)
+    menubar.add_cascade(label="Sets", menu=filemenu)
+    menubar.add_cascade(label="Preview", menu=previewmenu)
+    root.config(menu=menubar)
+    
                 
     root.mainloop()
 
