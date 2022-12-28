@@ -84,6 +84,12 @@ class CategoryList:
         if len(i) > 0 and self.getDisabled() == False and i[0] > 0:
             c = self.lbox.get(i)
         return c
+    
+    def selectByName(self, name):
+        names = self.lbox.get(0, END)
+        idx = names.index(name)
+        self.lbox.selection_clear(0, END)
+        self.lbox.selection_set(idx)
         
     def relist(self, data):
         self.dat = data
@@ -306,11 +312,12 @@ class PromptPreview:
         
 class ImagePreview:
     imgIdx = 0
-    def __init__(self, root, cb_del):
+    def __init__(self, root, cb_del, cb_sel):
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
         self.canvas.grid(row = 1,sticky=(N,S,E,W))
         self.on_delete = cb_del
+        self.on_select = cb_sel
         
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
@@ -341,6 +348,10 @@ class ImagePreview:
         self.cpyBtn = ttk.Button(btnFrame, text='Copy', command=self.CopyImageSettings)
         self.cpyBtn.grid(row=1, sticky=(N,E,W))
         self.cpyBtn.config(state=DISABLED)
+        
+        self.selBtn = ttk.Button(btnFrame, text='Select', command=self.SelectImagePrompts)
+        self.selBtn.grid(row=2, sticky=(N,E,W))
+        self.selBtn.config(state=DISABLED)
         
         
                 
@@ -379,6 +390,7 @@ class ImagePreview:
     def SetImageSet(self, path, images):
         self.delBtn.config(state=NORMAL)
         self.cpyBtn.config(state=NORMAL)
+        self.selBtn.config(state=NORMAL)
         self.imgPath = path
         self.images = images
         self.imgIdx = 1
@@ -403,6 +415,10 @@ class ImagePreview:
         file = self.imgPath + self.images[self.imgIdx-1][1]
         os.remove(file)
         self.on_delete()
+        
+    def SelectImagePrompts(self):    
+        styles = self.images[self.imgIdx-1][2]
+        self.on_select(styles)
         
     def CopyImageSettings(self):
         file = self.imgPath + self.images[self.imgIdx-1][1]
@@ -447,6 +463,7 @@ class ImagePreview:
     def ClearImage(self):
         self.delBtn.config(state=DISABLED)
         self.cpyBtn.config(state=DISABLED)
+        self.selBtn.config(state=DISABLED)
         self.hasImage = False
         self.canvas.configure(image='')
         self.iInfo.config(state=NORMAL)
@@ -484,7 +501,7 @@ class Set:
         self.pPreview = PromptPreview(ppFrame)
         self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
         
-        self.iPreview = ImagePreview(ppFrame, self.cb_imageDeleted)
+        self.iPreview = ImagePreview(ppFrame, self.cb_imageDeleted, self.cb_imageSelectPrompts)
         self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
         ppFrame.grid_columnconfigure(0, weight=1)
         # ppFrame.grid_rowconfigure(0, weight=1)
@@ -532,7 +549,14 @@ class Set:
             data[c] = d
         SyncPreviewList(data, self.path)
         self.listboxSelectionChanged()
-        
+    
+    def cb_imageSelectPrompts(self, selection):
+        for sel in selection:
+            for c in sel:
+                for cat in self.catList:
+                    if c == cat.getName():
+                        cat.selectByName(sel[c])
+        self.listboxSelectionChanged()
                 
     @timer   
     def listboxSelectionChanged(self, edited = False):
