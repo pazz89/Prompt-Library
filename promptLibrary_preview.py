@@ -77,11 +77,42 @@ def VerifyPreviewListing(unlistedPreviewCandidates, previewData, path):
              
     for img in unlistedPreviewCandidates:
         os.replace('{}\{}'.format(picsPath, img), '{}\{}'.format(archivePath, img))
-                 
-                 
-    
+        
+        
+def PreviewFiles(promptData, path):
+    filename = path + '\previews.yaml'
+    with open(filename) as f:
+        previewData = yaml.load(f, Loader=SafeLoader)
+    commonFiles = set()  
+    for c in promptData:
+        if not commonFiles:
+            commonFiles = set(previewData[c][promptData[c]]["Files"])
+        else:
+            commonFiles = set(commonFiles & set(previewData[c][promptData[c]]["Files"]))
+        if not commonFiles:
+            return []
+    return list(commonFiles)
 
-def MissingPreviewList(promptData, path):
+def PreviewExlusivity(promptData, path, file):
+    filename = path + '\previews.yaml'
+    with open(filename) as f:
+        previewData = yaml.load(f, Loader=SafeLoader)
+    
+    
+    exCount = 0    
+    for c in previewData:
+        if c in promptData:
+            continue
+        for p in previewData[c]:
+            if file in previewData[c][p]["Files"]:
+                exCount += 1
+    
+    return exCount
+        
+            
+                             
+
+def PreviewList(promptData, path, missingOnly, fileList = False):
     
     filename = path + '\previews.yaml'
     with open(filename) as f:
@@ -89,19 +120,39 @@ def MissingPreviewList(promptData, path):
     
     promptList = []
     combinations = 0
+    
+    # create a list of categories which shouldn't be skipped because only one prompt was selected to create images for
+    dontSkipList = []
+    for c in promptData:
+        if len(promptData[c]) == 1:
+            for p in promptData[c]:
+                if 'dontIgnore' in promptData[c][p]:
+                    dontSkipList.append(c)
+                    promptData[c][p].pop('dontIgnore') # remove to don't mess up prompts
+                    
+            
     # Loop through every possible category combination count (i.e. 3 Categories = 1-3)
     for i in range(1, len(promptData)+1): 
         
         # Loop through List of every possible category combination with the given combination count
         for catList in itertools.combinations(promptData, i):
             # for the given Category combination, create a list of all possible Prompt combinations
-            print("-----")
+            # but don't do combinations if an element of the don't skip list  is not in the catList
+            skip = False
+            for c in dontSkipList: 
+                if c not in catList:
+                    skip = True
+                    break
+            if skip:
+                continue
+            
+            # print("-----")
             lst = [list(promptData[catList[0]])] # List of all prompts from 1st category as init value
-            print("\t", catList[0])
+            # print("\t", catList[0])
             
             # Append the prompts from the other categories
             for j in range(1,i):
-                print("\t", catList[j])
+                # print("\t", catList[j])
                 lst2 = list(promptData[catList[j]])
                 lst.append(lst2)
             
@@ -146,11 +197,10 @@ def MissingPreviewList(promptData, path):
                     
                 finalPrompt = f"--prompt '{prompt}' --negative_prompt '{nprompt}'"
                 
-                if len(commonFiles) == 0:
+                if len(commonFiles) == 0 or missingOnly == False:
                     promptList.append((trgt, finalPrompt))
-                    # print(target,",","Prompt:",prompt)
-                # else:
-                #     print(target,",","CommonFiles:", commonFiles)
                 
-    
-    return promptList
+    if commonFiles:
+        return commonFiles
+    else:
+        return promptList

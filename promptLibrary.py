@@ -12,6 +12,7 @@ from tkinter import *
 from tkinter import ttk
 from tkinter import messagebox
 from tkinter import font
+from PIL import ImageTk, Image  
 
 import yaml
 from yaml.loader import SafeLoader
@@ -20,7 +21,7 @@ import itertools
 import os
 import os.path
 
-from promptLibrary_preview import MissingPreviewList, SyncPreviewList
+from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity
 
 class CategoryList:
     firstVal = "-"
@@ -36,7 +37,7 @@ class CategoryList:
         
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         
-        self.lbox = Listbox(self.frame, exportselection=False, height=2, width=30)
+        self.lbox = Listbox(self.frame, exportselection=False, height=2, width=60)
         scrl = ttk.Scrollbar(self.frame, orient=VERTICAL, command=self.lbox.yview)
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
@@ -149,6 +150,15 @@ class CategoryList:
     
     def getName(self):
         return self.cat
+    
+    def getSelectedPromptDict(self):
+        i = self.lbox.curselection()
+        sel = {}
+        if len(i) > 0 and self.getDisabled() == False and i[0] > 0:
+            selPrompt = self.lbox.get(i)
+            sel = {self.cat:selPrompt}
+        
+        return sel
     
     def getPromptCount(self):
         return len(self.dat[self.cat])
@@ -292,6 +302,87 @@ class PromptPreview:
         
     def setFocus(self):
         self.cpyBtn.focus_set()
+        
+class ImagePreview:
+    def __init__(self, root):
+        self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
+        self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
+        self.canvas.grid(row = 1,sticky=(N,S,E,W))
+        
+        f = font.nametofont('TkTextFont')
+        f.config(weight='bold')
+        lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
+        lbl.grid(row=0,sticky=(N,S,E,W))
+        
+        self.frame.grid_rowconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1)
+        self.hasImage = False
+        
+        self.iInfo = Text(self.frame,height=5,wrap = "word")    
+        self.iInfo.grid(row=2, sticky=(N,S,E,W))
+        self.iInfo.config(state=DISABLED)
+        scrl = ttk.Scrollbar(self.frame, orient=VERTICAL, command=self.iInfo.yview)
+        self.iInfo.configure(yscrollcommand=scrl.set)
+        scrl.grid(column=1, row=2, sticky=(N,S,E,W))
+                
+        
+    def _getSize(self, fw, fh, iw, ih):
+        if fw >= iw and fh >= ih:
+            return iw, ih
+        
+        if fw >= iw and fh < ih:
+            return int(iw * fh/ih), fh
+        
+        if fw < iw and fh >= ih:
+            return fw, int(ih*fw/iw)
+        
+        if fw < iw and fh < ih:
+            dw = fw/iw
+            dh = fh/ih
+            
+            w = iw * dw if dw < dh else iw * dh
+            h = ih * dw if dw < dh else ih * dh
+            
+            return int(w), int(h)
+        
+        
+        
+    def SetImage(self, fImg):
+        self.imgOrig = Image.open(fImg)
+        
+        self.iInfo.config(state=NORMAL)
+        info = self.imgOrig.info
+        if 'parameters' in info:
+            self.iInfo.delete("1.0","end")
+            lines = [x.strip() for x in info['parameters'].splitlines()]
+            for l in range(0,len(lines)-1):
+                self.iInfo.insert(END, lines[l] + "\n")
+            self.iInfo.insert("1.0", lines[-1] + "\n\n")
+        else:
+            self.iInfo.delete("1.0","end")
+        self.iInfo.config(state=DISABLED)
+        
+        w, h = self._getSize(self.canvas.winfo_width(), self.canvas.winfo_height(), self.imgOrig.width, self.imgOrig.height)
+        self.img = ImageTk.PhotoImage(self.imgOrig.resize((w, h)))
+        
+        self.canvas.configure(image=self.img)
+        # self.canvas.create_image(0, 0, anchor=NW, image=self.img) 
+        self.hasImage = True
+        
+
+            
+        
+    def ClearImage(self):
+        self.hasImage = False
+        self.canvas.configure(image='')
+        self.iInfo.config(state=NORMAL)
+        self.iInfo.delete("1.0","end")
+        self.iInfo.config(state=DISABLED)
+        
+
+    def grid(self, **kwargs):
+        self.frame.grid(kwargs)
+    
                 
 
 class Set:
@@ -312,16 +403,24 @@ class Set:
             frame.grid_rowconfigure(idx,weight=c.getPromptCount())
             self.catList.append(c)
         
-        self.pPreview = PromptPreview(frame)
-        self.pPreview.grid(column=2, row=0, rowspan=3, sticky=(N,W,E,S))
+        ppFrame = ttk.Frame(frame)
+        ppFrame.grid(column=2, row = 0, rowspan=len(struct), sticky=(N,W,E,S))
+        self.pPreview = PromptPreview(ppFrame)
+        self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
         
+        self.iPreview = ImagePreview(ppFrame)
+        self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+        ppFrame.grid_columnconfigure(0, weight=1)
+        # ppFrame.grid_rowconfigure(0, weight=1)
+        ppFrame.grid_rowconfigure(1, weight=1)
+                
         ttk.Separator(frame, orient=VERTICAL).grid(column=1, row=0, rowspan=len(struct), sticky=(N,W,E,S))
         
         self.saveBtn = ttk.Button(frame, text='Save', command=self.cb_save)
         self.saveBtn.config(state=DISABLED)
         self.saveBtn.grid(column=0)
         
-        frame.grid_columnconfigure(0, weight=1)
+        # frame.grid_columnconfigure(0, weight=1)
         frame.grid_columnconfigure(2, weight=1)  
         
     def cb_dirty(self):
@@ -348,12 +447,13 @@ class Set:
             
         pp = ''
         np = ''
+        selDict = {}
         for c in self.catList:
+            selDict.update(c.getSelectedPromptDict())
             p = c.getPrompt()
             n = c.getNegativePrompt()
             pp += p + ", " if p else ''
             np += n + ", " if n else ''
-            
         pp = pp.removesuffix(", ")
         np = np.removesuffix(", ")
         pp += '\nNegative prompt: '+np if np else ''
@@ -374,6 +474,23 @@ class Set:
         
         self.pPreview.markNegPrompt()
         
+        # Get Preview Files
+        commonFiles = PreviewFiles(selDict, self.path)
+        
+        # Sorty by Exclusivity
+        commonFilesExcl = []
+        for f in commonFiles:
+            commonFilesExcl.append(PreviewExlusivity(selDict, self.path, f))
+        
+        commonFiles = [x for _,x in sorted(zip(commonFilesExcl,commonFiles))]
+        if len(commonFiles) > 0:
+            preview = self.path + '\_previews\\' + commonFiles[0]
+            self.iPreview.SetImage(preview)
+        else:
+            self.iPreview.ClearImage()
+            
+            
+        
         
     def missingPreviews(self):
         allData = {}
@@ -392,10 +509,14 @@ class Set:
                     p = cat.returnSelPrompt()
                     previewData[c] = {}
                     previewData[c][p] = d[p]
+                    previewData[c][p]['dontIgnore'] = True
                     
         SyncPreviewList(allData, self.path)
-        promptList = MissingPreviewList(previewData, self.path)
-        print(promptList)
+        promptList = PreviewList(previewData, self.path, True)
+        # print(promptList)
+        with open(self.path + "\promptList.txt", 'w') as f:
+            for p in promptList:
+                f.write(f"{p[1]}"+'\n')
         print(f'ListSize: {len(promptList)}')
 
 class SetEdit:
