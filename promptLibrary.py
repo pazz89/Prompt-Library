@@ -22,6 +22,8 @@ import itertools
 import os
 import os.path
 
+import re
+
 from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity, timer, DeleteRefToMissingImages, SetCachedPerviewFileDirty
 
 class CategoryList:
@@ -360,15 +362,20 @@ class ImagePreview:
         self.delBtn.grid(row=0, sticky=(N,E,W))
         self.delBtn.config(state=DISABLED)
         
-        self.cpyBtn = ttk.Button(btnFrame, text='Copy', command=self.CopyImageSettings)
-        self.cpyBtn.grid(row=1, sticky=(N,E,W))
-        self.cpyBtn.config(state=DISABLED)
-        
         self.selBtn = ttk.Button(btnFrame, text='Select', command=self.SelectImagePrompts)
-        self.selBtn.grid(row=2, sticky=(N,E,W))
+        self.selBtn.grid(row=1, sticky=(N,E,W))
         self.selBtn.config(state=DISABLED)
         
+        self.cpyBtn = ttk.Button(btnFrame, text='Copy', command=self.CopyImageSettings)
+        self.cpyBtn.grid(row=2, sticky=(N,E,W))
+        self.cpyBtn.config(state=DISABLED)
         
+        self.noCpy = BooleanVar()
+        self.noCpyCkp = ttk.Checkbutton(btnFrame, text="Copy Model/Batch", variable=self.noCpy, onvalue=True)
+        self.noCpyCkp.grid(row=3, sticky=(N,E,W)) 
+        self.noCpy.set(False)
+        
+           
                 
         
     def _getSize(self, fw, fh, iw, ih):
@@ -455,9 +462,14 @@ class ImagePreview:
         file = self.imgPath + self.images[self.imgIdx-1][1]
         imgOrig = Image.open(file)
         
+        cpyModel = self.noCpy.get()
+        
         info = imgOrig.info
         if 'parameters' in info:   
             s = info['parameters']
+            if not cpyModel:
+                s = re.sub("Model hash: [a-zA-Z0-9]*[\s,]*|Batch size: [a-zA-Z0-9]*[\s,]*|Batch pos: [a-zA-Z0-9]*[\s,]*", '', s)
+            
             r = Tk()
             r.withdraw()
             r.clipboard_clear()
