@@ -398,7 +398,7 @@ class ImagePreview:
             return int(w), int(h)
         
     def ScrollImage(self, event):
-        if event.delta > 0:
+        if event.delta < 0:
             self.NextImage(event)
         else:
             self.PreviousImage(event)
