@@ -132,6 +132,7 @@ def CheckPreviewModification(path):
     
     totModTime = 0
     for s in subDir:
+        totModTime += os.path.getmtime(prevPath)
         totModTime += os.path.getmtime(prevPath + s)
     
     if path in previewFileCacheModTime:
@@ -170,11 +171,7 @@ def VerifyPreviewListing(unlistedPreviewCandidates, previewData, path):
         os.replace('{}\{}'.format(picsPath, img), '{}\{}'.format(archivePath, img.replace('\\','_')))
         
 @timer        
-def PreviewFiles(promptData, path):
-    # filename = path + '\previews.yaml'
-    # with open(filename) as f:
-    #     previewData = yaml.load(f, Loader=SafeLoader)
-        
+def PreviewFiles(promptData, path):        
     previewData = GetCachedPreviewFile(path)
     commonFiles = set()  
     for c in promptData:
@@ -188,10 +185,6 @@ def PreviewFiles(promptData, path):
 
 @timer
 def PreviewExlusivity(promptData, path, files):
-    # filename = path + '\previews.yaml'
-    # with open(filename) as f:
-    #     previewData = yaml.load(f, Loader=SafeLoader)
-        
     previewData = GetCachedPreviewFile(path)
     
     return PreviewExlusivityCore(promptData, previewData, files)
@@ -214,9 +207,7 @@ def PreviewExlusivityCore(promptData, previewData, files):
 @timer
 def PreviewList(promptData, path, missingOnly, fileList = False):
     
-    filename = path + '\previews.yaml'
-    with open(filename) as f:
-        previewData = yaml.load(f, Loader=SafeLoader)
+    previewData = GetCachedPreviewFile(path)
     
     promptList = []
     combinations = 0
