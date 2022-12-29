@@ -146,12 +146,14 @@ class Script(scripts.Script):
         else:
             p.do_not_save_samples = True
             p.do_not_save_grid = True
-        p.n_iter = 1
+        
+        if save_to_webui == False:
+            p.n_iter = 1
 
         job_count = len(jobs)           
             
         totIteration = math.ceil(job_count / p.batch_size)
-        print(f"Will process {job_count} previews in {totIteration} jobs.")
+        print(f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times. Total of {totIteration*p.n_iter} jobs")
         if p.seed == -1:
             p.seed = int(random.randrange(4294967294))
 
@@ -162,65 +164,70 @@ class Script(scripts.Script):
         infotexts = []
         all_seeds = []
         
-        batch_count = math.floor(job_count / p.batch_size)
-        batch_reamin = job_count - (batch_count * p.batch_size)
-        state.job_count = batch_count+1
+        batch_count = math.ceil(job_count / p.batch_size)
+        state.job_count = (batch_count)*p.n_iter
         
-        seedInit = p.seed
-        for i in range(0,job_count,p.batch_size):
-            p.prompt = []
-            p.negative_prompt = []
-            p.seed = []
-            
-            batchStart = i
-            batchEnd = i+p.batch_size
-            batchEnd = batchEnd if batchEnd <= job_count else job_count
-            p.batch_size = 0
-            
-            for j in range(batchStart, batchEnd):
-                p.prompt.append(jobs[j]["prompt"])
-                if "negative_prompt" in jobs[j]:
-                    p.negative_prompt.append(jobs[j]["negative_prompt"])
-                else:
-                    p.negative_prompt.append('')
-                    
-                if checkbox_same_seed:
-                    p.seed.append(seedInit)
-                else:
-                    p.seed.append(seedInit + j)
-                p.batch_size +=1  
-                
-            print(f"\nPreview {batchStart} to {batchEnd} of {job_count}")    
-            state.job = f"{state.job_no + 1} out of {state.job_count}" 
-            
-            proc = process_images(p)
-            
-            if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
-                
-                if save_to_webui:
-                    imgs += proc.images
-                else:
-                    imgs.append(images.image_grid(proc.images))
-                    
-                all_prompts += proc.all_prompts
-                infotexts += proc.infotexts
-                all_seeds += p.seed
-                if save_to_webui == False:
-                    basename = "plib_"
-                    assert len(proc.images) == batchEnd-batchStart, f'failure on image generation'
-                    for i, j in zip(range(len(proc.images)),range(batchStart, batchEnd)):
-                        ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
-                        
-                        for ct in jobs[j]["cat"]:
-                            relFName = ifName.replace(previewPath, '')
-                            prmpt = jobs[j]["cat"][ct]
-                            previewData[ct][prmpt]['Files'].append(relFName)
-                    
-                    with open(previewFile, 'w') as f:
-                        yaml.dump(previewData, f, sort_keys=False)       
-                    
+        startSeed = p.seed
+        for n in range(p.n_iter):
+            if checkbox_same_seed:
+                seedInit = startSeed + n
             else:
-                break;
+                seedInit = startSeed + n * job_count
                 
+            for i in range(0,job_count,p.batch_size):
+                p.prompt = []
+                p.negative_prompt = []
+                p.seed = []
                 
+                batchStart = i
+                batchEnd = i+p.batch_size
+                batchEnd = batchEnd if batchEnd <= job_count else job_count
+                p.batch_size = 0
+                
+                for j in range(batchStart, batchEnd):
+                    p.prompt.append(jobs[j]["prompt"])
+                    if "negative_prompt" in jobs[j]:
+                        p.negative_prompt.append(jobs[j]["negative_prompt"])
+                    else:
+                        p.negative_prompt.append('')
+                        
+                    if checkbox_same_seed:
+                        p.seed.append(seedInit)
+                    else:
+                        p.seed.append(seedInit + j)
+                    p.batch_size +=1  
+                    
+                print(f"\nPreview {batchStart} to {batchEnd} of {job_count} (#{n})")    
+                state.job = f"{state.job_no + 1} out of {state.job_count}" 
+                
+                proc = process_images(p)
+                
+                if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
+                    
+                    if save_to_webui:
+                        imgs += proc.images
+                    else:
+                        imgs.append(images.image_grid(proc.images))
+                        
+                    all_prompts += proc.all_prompts
+                    infotexts += proc.infotexts
+                    all_seeds += p.seed
+                    if save_to_webui == False:
+                        basename = "plib_"
+                        assert len(proc.images) == batchEnd-batchStart, f'failure on image generation'
+                        for i, j in zip(range(len(proc.images)),range(batchStart, batchEnd)):
+                            ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
+                            
+                            for ct in jobs[j]["cat"]:
+                                relFName = ifName.replace(previewPath, '')
+                                prmpt = jobs[j]["cat"][ct]
+                                previewData[ct][prmpt]['Files'].append(relFName)
+                        
+                        with open(previewFile, 'w') as f:
+                            yaml.dump(previewData, f, sort_keys=False)       
+                        
+                else:
+                    break;
+                    
+                    
         return Processed(p, imgs, seedInit, "", all_prompts=all_prompts, infotexts=infotexts, all_seeds=all_seeds)
