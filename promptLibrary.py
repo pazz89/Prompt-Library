@@ -409,6 +409,15 @@ class ImagePreview:
         self.imgIdx = self.imgIdx - 1 if self.imgIdx - 1 > 0 else len(self.images)
         self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
         self.UpdateVisRefLabel()
+        
+    def SetPreviewIndex(self, index):
+        if self.hasImage == False:
+            return
+        self.imgIdx = index if index <= len(self.images) else 1
+        self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
+        self.UpdateVisRefLabel()
+        
+        
     
     def SetImageSet(self, path, images):
         self.delBtn.config(state=NORMAL)
@@ -436,7 +445,7 @@ class ImagePreview:
     def DeleteImage(self):    
         file = self.imgPath + self.images[self.imgIdx-1][1]
         os.remove(file)
-        self.on_delete()
+        self.on_delete(self.imgIdx-1)
         
     def SelectImagePrompts(self):    
         styles = self.images[self.imgIdx-1][2]
@@ -593,13 +602,14 @@ class Set:
         except:
             pass
         
-    def cb_imageDeleted(self):
+    def cb_imageDeleted(self, selectPreview):
         data = {}
         for idx, cat in enumerate(self.catList):
             c, d = cat.returnSelf()
             data[c] = d
         SyncPreviewList(data, self.path)
         self.listboxSelectionChanged()
+        self.iPreview.SetPreviewIndex(selectPreview)
     
     def cb_imageSelectPrompts(self, selection):
         for sel in selection:
