@@ -14,6 +14,10 @@ import os.path
 import functools
 import time
 
+previewFileCache = {}
+previewFileCacheDirty = {}
+previewFileCacheModTime = {}
+
 def timer(func):
     """Print the runtime of the decorated function"""
     @functools.wraps(func)
@@ -26,6 +30,7 @@ def timer(func):
         return value
     return wrapper_timer
 
+@timer
 def SyncPreviewList(promptData, path):
     
     filename = path + '\previews.yaml'
@@ -75,7 +80,8 @@ def SyncPreviewList(promptData, path):
         yaml.dump(previewData, f, sort_keys=False)    
         
     DeleteRefToMissingImages(path)
-        
+
+@timer        
 def DeleteRefToMissingImages(path):
     filename = path + '\previews.yaml'
     picsPath = path + '\_previews\\'
@@ -94,8 +100,55 @@ def DeleteRefToMissingImages(path):
                          
     except:
         pass
-     
+
+def GetCachedPreviewFile(path, load=False):
+    global previewFileCache
+    global previewFileCacheDirty
+    
+    loadToCache = load
+    CheckPreviewModification(path)
+    
+    if path in previewFileCacheDirty:
+        if previewFileCacheDirty[path]:
+            loadToCache = True
+    else:
+        loadToCache = True
             
+    if loadToCache:
+        print("load preview file to cache")
+        filename = path + '\previews.yaml'
+        with open(filename) as f:
+            previewFileCache[path] = yaml.load(f, Loader=SafeLoader)  
+        previewFileCacheDirty[path] = False
+            
+    return previewFileCache[path]
+
+def CheckPreviewModification(path):
+    global previewFileCacheDirty
+    global previewFileCacheModTime
+    prevPath = path + "\\_previews\\"
+    
+    subDir =  [x for x in os.listdir(prevPath) if os.path.isdir(prevPath + x)]
+    
+    totModTime = 0
+    for s in subDir:
+        totModTime += os.path.getmtime(prevPath + s)
+    
+    if path in previewFileCacheModTime:
+        if totModTime > previewFileCacheModTime[path]:
+            SetCachedPerviewFileDirty(path)
+            previewFileCacheModTime[path] = totModTime
+            
+    else:
+        SetCachedPerviewFileDirty(path)
+        previewFileCacheModTime[path] = totModTime
+    
+
+def SetCachedPerviewFileDirty(path):
+    global previewFileCacheDirty
+    previewFileCacheDirty[path] = True
+
+@timer            
 def VerifyPreviewListing(unlistedPreviewCandidates, previewData, path):
     
     # for img in unlistedPreviewCandidates:
@@ -118,9 +171,11 @@ def VerifyPreviewListing(unlistedPreviewCandidates, previewData, path):
         
 @timer        
 def PreviewFiles(promptData, path):
-    filename = path + '\previews.yaml'
-    with open(filename) as f:
-        previewData = yaml.load(f, Loader=SafeLoader)
+    # filename = path + '\previews.yaml'
+    # with open(filename) as f:
+    #     previewData = yaml.load(f, Loader=SafeLoader)
+        
+    previewData = GetCachedPreviewFile(path)
     commonFiles = set()  
     for c in promptData:
         if not commonFiles:
@@ -133,12 +188,15 @@ def PreviewFiles(promptData, path):
 
 @timer
 def PreviewExlusivity(promptData, path, files):
-    filename = path + '\previews.yaml'
-    with open(filename) as f:
-        previewData = yaml.load(f, Loader=SafeLoader)
+    # filename = path + '\previews.yaml'
+    # with open(filename) as f:
+    #     previewData = yaml.load(f, Loader=SafeLoader)
+        
+    previewData = GetCachedPreviewFile(path)
     
     return PreviewExlusivityCore(promptData, previewData, files)
-        
+
+@timer        
 def PreviewExlusivityCore(promptData, previewData, files):     
     exCount = [0] * len(files)     
     exStyles = [ [] for _ in range(len(files)) ]

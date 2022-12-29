@@ -22,7 +22,7 @@ import itertools
 import os
 import os.path
 
-from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity, timer, DeleteRefToMissingImages
+from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity, timer, DeleteRefToMissingImages, SetCachedPerviewFileDirty
 
 class CategoryList:
     firstVal = "-"
