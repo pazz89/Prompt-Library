@@ -329,14 +329,14 @@ class ImagePreview:
     def __init__(self, root, cb_del, cb_sel):
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
-        self.canvas.grid(row = 1,sticky=(N,S,E,W))
+        self.canvas.grid(row = 1,sticky=(N,S,E,W),columnspan=3)
         self.on_delete = cb_del
         self.on_select = cb_sel
         
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
         self.lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
-        self.lbl.grid(row=0,sticky=(N,S,E,W))
+        self.lbl.grid(row=0,sticky=(N,S,E,W),columnspan=3)
         
         self.canvas.bind("<Button-1>", self.NextImage)
         self.canvas.bind("<Button-4>", self.NextImage)
