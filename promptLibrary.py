@@ -49,6 +49,7 @@ class CategoryList:
         self.lbox.configure(yscrollcommand=scrl.set)
         self.lbox.bind("<<ListboxSelect>>", lambda e: self.cb_change())
         self.lbox.bind("<Double-Button-1>", lambda e: self.cb_edit(self.lbox.get(self.lbox.curselection())))
+        self.lbox.bind("<Button-3>", lambda e: self.cb_copy(self.lbox.get(self.lbox.curselection())))
         sep = ttk.Separator(self.frame, orient=HORIZONTAL)
         weight = ttk.Spinbox(self.frame, format="%.1f",increment=0.1,from_=0.0, to=10.0, textvariable=self.weightVal, width=5, command=self.cb_change)
         
@@ -100,6 +101,17 @@ class CategoryList:
         for idx, name in enumerate(self.dat[self.cat]):
             self.lbox.insert(idx+1,name)  
         self.cb_change()
+        
+    def cb_copy(self, prompt):
+        promptVal = self.dat[self.cat][prompt]["Prompt"]
+        negPromptVal = self.dat[self.cat][prompt]["NegPrompt"] if "NegPrompt" in self.dat[self.cat][prompt] else ''
+        
+        r = Tk()
+        r.withdraw()
+        r.clipboard_clear()
+        r.clipboard_append(promptVal if promptVal else negPromptVal)
+        r.update()
+        r.destroy()
             
     def cb_edit(self, prompt):
         if prompt == self.firstVal:
