@@ -32,6 +32,7 @@ class CategoryList:
         self.root = root
         self.promptName = StringVar()
         self.disable = BooleanVar()
+        self.noIgnore = BooleanVar()
         self.dat = data
         self.cat = cat
         self.cb_change = onselect
@@ -46,6 +47,7 @@ class CategoryList:
         f.config(weight='bold')
         lbl = ttk.Label(self.frame, text=self.cat,font=f)
         self.dis = ttk.Checkbutton(self.frame, text="Disable", variable=self.disable, onvalue=True, command=self.cb_disabled)
+        self.always = ttk.Checkbutton(self.frame, text="Don't Ignore", variable=self.noIgnore, onvalue=True)
         self.lbox.configure(yscrollcommand=scrl.set)
         self.lbox.bind("<<ListboxSelect>>", lambda e: self.cb_change())
         self.lbox.bind("<Double-Button-1>", lambda e: self.cb_edit(self.lbox.get(self.lbox.curselection())))
@@ -62,11 +64,12 @@ class CategoryList:
         for idx, name in enumerate(self.dat[self.cat]):
             self.lbox.insert(idx+1,name)  
             
-        self.lbox.grid(column=0, row=1, columnspan=3, sticky=(N,S,E,W))
-        scrl.grid(column=3, row=1, sticky=(N,S,E,W))
+        self.lbox.grid(column=0, row=1, columnspan=4, sticky=(N,S,E,W))
+        scrl.grid(column=4, row=1, sticky=(N,S,E,W))
         
         lbl.grid(column=0, row=0, pady=0, sticky=(N,S,W))
         self.dis.grid(column=2,row=0, sticky=(N,S,E))
+        self.always.grid(column=3,row=0, sticky=(N,S,E))
         weight.grid(column=1,row=0, sticky=(N,S,E),padx=2)
         
         btnframe.grid(column=4,row=1,rowspan=2,sticky=(N,E,W))
@@ -93,6 +96,9 @@ class CategoryList:
         idx = names.index(name)
         self.lbox.selection_clear(0, END)
         self.lbox.selection_set(idx)
+        
+    def dontIgnore(self):
+        return self.noIgnore.get()
         
     def relist(self, data):
         self.dat = data
@@ -712,6 +718,8 @@ class Set:
                 if cat.isUnspecified():
                     c, d = cat.returnSelf()
                     previewData[c] = d
+                    if cat.dontIgnore():
+                        previewData[c]['dontIgnore'] = True
                 else:
                     c, d = cat.returnSelf()
                     p = cat.returnSelPrompt()

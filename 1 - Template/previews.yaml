@@ -48,6 +48,8 @@ Style:
     - \2022-12-28\plib_-0008-1223423907.png
   Photography:
     Files: []
+  dontIgnore:
+    Files: []
 Negative:
   Ugly:
     Files:

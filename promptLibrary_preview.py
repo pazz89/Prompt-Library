@@ -215,6 +215,9 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
     # create a list of categories which shouldn't be skipped because only one prompt was selected to create images for
     dontSkipList = []
     for c in promptData:
+        if 'dontIgnore' in promptData[c]:
+            dontSkipList.append(c)
+            promptData[c].pop('dontIgnore') # remove to don't mess up prompts
         if len(promptData[c]) == 1:
             for p in promptData[c]:
                 if 'dontIgnore' in promptData[c][p]:
