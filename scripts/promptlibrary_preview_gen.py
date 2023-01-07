@@ -240,12 +240,14 @@ class Script(scripts.Script):
         all_seeds = []
         
         batch_count = math.ceil(job_count / p.batch_size)
+        c_batch_size = p.batch_size
         
         checkSettings(settings)
         startSeed = p.seed
         with SharedSettingsStackHelper():
             for n in range(p.n_iter):
                 for setIdx, set in enumerate(settings):
+                    p.batch_size = c_batch_size
                     applySettings(set)
                     state.job_count = (batch_count)*p.n_iter*setLen
 
