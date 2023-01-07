@@ -22,3 +22,8 @@ Negative:
   Ugly:
     Prompt: ''
     NegPrompt: ugly, disfigured
+_settings:
+  Euler:
+    Setting: 'Steps: 30, Sampler: Euler a, CFG scale: 5, Seed: 1, Size: 512x512, Model
+      hash: b172032e, Model: analogProtoSimpBlend'
+    SettingName: Euler

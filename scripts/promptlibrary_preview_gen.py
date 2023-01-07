@@ -18,7 +18,10 @@ from modules import images
 from modules.processing import Processed, process_images
 from PIL import Image
 from modules.shared import opts, cmd_opts, state
-
+from modules.generation_parameters_copypaste import parse_generation_parameters
+import modules.shared as shared
+import modules.sd_samplers
+import modules.sd_models
 
 def process_string_tag(tag):
     return tag
@@ -110,7 +113,13 @@ def load_prompt_file(file):
         lines = [x.strip() for x in file.decode('utf8', errors='ignore').split("\n")]
 
     return None, "\n".join(lines), gr.update(lines=7)
-
+    
+class SharedSettingsStackHelper(object):
+    def __enter__(self):
+        self.model = shared.sd_model
+  
+    def __exit__(self, exc_type, exc_value, tb):
+        modules.sd_models.reload_model_weights(self.model)
 
 class Script(scripts.Script):
     def title(self):
@@ -125,7 +134,58 @@ class Script(scripts.Script):
 
         return [checkbox_same_seed, save_to_webui, libraryPath]
 
-    def run(self, p, checkbox_same_seed, save_to_webui, libraryPath: str):        
+    def run(self, p, checkbox_same_seed, save_to_webui, libraryPath: str):  
+        startSeed = 0
+        def checkSettings(settings):
+            for s in settings:
+                if "Model" in s:
+                    ckp = s["Model"]
+                    info = modules.sd_models.get_closet_checkpoint_match(ckp)
+                    if info is None:
+                        raise RuntimeError(f"Unknown checkpoint: {ckp}. Make sure you use model name without folder prefix")
+                
+                if "Sampler" in s:
+                    smpl = s["Sampler"]
+                    sampler_name = sd_samplers.samplers_map.get(smpl.lower(), None)
+                    if sampler_name is None:
+                        raise RuntimeError(f"Unknown sampler: {smpl}")
+
+        def applySettings(setting):
+            if not setting:
+                print('\n' + f"No Setting to apply")
+                return
+
+            name = setting["_settingName"]
+            print('\n' + f"Applying Setting {name}")
+            if "Model" in setting:
+                ckp = setting["Model"]
+                info = modules.sd_models.get_closet_checkpoint_match(ckp)
+                if info is None:
+                    raise RuntimeError(f"Unknown checkpoint: {ckp}. Make sure you use model name without folder prefix")
+                modules.sd_models.reload_model_weights(shared.sd_model, info)
+                p.sd_model = shared.sd_model
+            
+            if "Sampler" in setting:
+                smpl = setting["Sampler"]
+                sampler_name = sd_samplers.samplers_map.get(smpl.lower(), None)
+                if sampler_name is None:
+                    raise RuntimeError(f"Unknown sampler: {smpl}")
+
+                p.sampler_name = sampler_name
+
+            if "CFG scale" in setting:
+                cfg = setting["CFG scale"]
+                p.cfg_scale = float(cfg)
+                
+            if "Steps" in setting:
+                stp = setting["Steps"]
+                p.steps = int(stp)
+
+            if "Seed" in setting:
+                sed = setting["Seed"]
+                nonlocal startSeed
+                startSeed = int(sed)
+
         promptList = libraryPath + "\promptList.txt"
         previewFile = libraryPath + "\previews.yaml"
         previewPath = libraryPath + "\_previews"
@@ -135,8 +195,22 @@ class Script(scripts.Script):
         
         with open(promptList, 'r') as f:     
             s = f.read()
-            jobs = json.loads(s)
-            
+            data = json.loads(s)
+            jobs = data["Prompts"]
+            _settings = data["Settings"]
+
+        settings = []
+        for s in _settings:
+            para = parse_generation_parameters(s["Setting"]+ ", Dummy1: well, Dummy2: lol")
+            para["_settingName"] = s["SettingName"]
+            settings.append(para)
+        
+        if settings:
+            setLen = len(settings)
+        else:
+            settings.append({})
+            setLen = 1
+
         with open(previewFile, 'r') as f:
             previewData = yaml.load(f, Loader=SafeLoader)
         
@@ -150,10 +224,11 @@ class Script(scripts.Script):
         if save_to_webui == False:
             p.n_iter = 1
 
-        job_count = len(jobs)           
+        job_count = len(jobs)       
+        tot_job_count = job_count * setLen    
             
         totIteration = math.ceil(job_count / p.batch_size)
-        print(f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times. Total of {totIteration*p.n_iter} jobs")
+        print(f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times, each with {setLen} settings. Total of {totIteration*p.n_iter*setLen} jobs")
         if p.seed == -1:
             p.seed = int(random.randrange(4294967294))
 
@@ -165,69 +240,75 @@ class Script(scripts.Script):
         all_seeds = []
         
         batch_count = math.ceil(job_count / p.batch_size)
-        state.job_count = (batch_count)*p.n_iter
         
+        checkSettings(settings)
         startSeed = p.seed
-        for n in range(p.n_iter):
-            if checkbox_same_seed:
-                seedInit = startSeed + n
-            else:
-                seedInit = startSeed + n * job_count
-                
-            for i in range(0,job_count,p.batch_size):
-                p.prompt = []
-                p.negative_prompt = []
-                p.seed = []
-                
-                batchStart = i
-                batchEnd = i+p.batch_size
-                batchEnd = batchEnd if batchEnd <= job_count else job_count
-                p.batch_size = 0
-                
-                for j in range(batchStart, batchEnd):
-                    p.prompt.append(jobs[j]["prompt"])
-                    if "negative_prompt" in jobs[j]:
-                        p.negative_prompt.append(jobs[j]["negative_prompt"])
-                    else:
-                        p.negative_prompt.append('')
-                        
+        with SharedSettingsStackHelper():
+            for n in range(p.n_iter):
+                for setIdx, set in enumerate(settings):
+                    applySettings(set)
+                    state.job_count = (batch_count)*p.n_iter*setLen
+
                     if checkbox_same_seed:
-                        p.seed.append(seedInit)
+                        seedInit = startSeed + n
                     else:
-                        p.seed.append(seedInit + j)
-                    p.batch_size +=1  
-                    
-                print(f"\nPreview {batchStart} to {batchEnd} of {job_count} (#{n})")    
-                state.job = f"{state.job_no + 1} out of {state.job_count}" 
-                
-                proc = process_images(p)
-                
-                if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
-                    
-                    if save_to_webui:
-                        imgs += proc.images
-                    else:
-                        imgs.append(images.image_grid(proc.images))
+                        seedInit = startSeed + n * job_count
                         
-                    all_prompts += proc.all_prompts
-                    infotexts += proc.infotexts
-                    all_seeds += p.seed
-                    if save_to_webui == False:
-                        basename = "plib_"
-                        assert len(proc.images) == batchEnd-batchStart, f'failure on image generation'
-                        for i, j in zip(range(len(proc.images)),range(batchStart, batchEnd)):
-                            ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
+                    for i in range(0,job_count,p.batch_size):
+                        p.prompt = []
+                        p.negative_prompt = []
+                        p.seed = []
+                        
+                        batchStart = i
+                        batchEnd = i+p.batch_size
+                        batchEnd = batchEnd if batchEnd <= job_count else job_count
+                        p.batch_size = 0
+                        
+                        for j in range(batchStart, batchEnd):
+                            p.prompt.append(jobs[j]["prompt"])
+                            if "negative_prompt" in jobs[j]:
+                                p.negative_prompt.append(jobs[j]["negative_prompt"])
+                            else:
+                                p.negative_prompt.append('')
+                                
+                            if checkbox_same_seed:
+                                p.seed.append(seedInit)
+                            else:
+                                p.seed.append(seedInit + j)
+                            p.batch_size +=1  
                             
-                            for ct in jobs[j]["cat"]:
-                                relFName = ifName.replace(previewPath, '')
-                                prmpt = jobs[j]["cat"][ct]
-                                previewData[ct][prmpt]['Files'].append(relFName)
+                        print(f"\nPreview {batchStart} to {batchEnd} of {job_count} of setting {setIdx+1} (Iteration #{n+1})")    
+                        state.job = f"{state.job_no + 1} out of {state.job_count}" 
                         
-                        with open(previewFile, 'w') as f:
-                            yaml.dump(previewData, f, sort_keys=False)       
+                        proc = process_images(p)
                         
-                else:
-                    break;
+                        if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
+                            
+                            if save_to_webui:
+                                imgs += proc.images
+                            else:
+                                imgs.append(images.image_grid(proc.images))
+                                
+                            all_prompts += proc.all_prompts
+                            infotexts += proc.infotexts
+                            all_seeds += p.seed
+                            if save_to_webui == False:
+                                basename = "plib_"
+                                assert len(proc.images) == batchEnd-batchStart, f'failure on image generation'
+                                for i, j in zip(range(len(proc.images)),range(batchStart, batchEnd)):
+                                    ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
+                                    
+                                    relFName = ifName.replace(previewPath, '')
+                                    previewData["_settings"][set["_settingName"]]['Files'].append(relFName)
+                                    for ct in jobs[j]["cat"]:
+                                        prmpt = jobs[j]["cat"][ct]
+                                        previewData[ct][prmpt]['Files'].append(relFName)
+                                
+                                with open(previewFile, 'w') as f:
+                                    yaml.dump(previewData, f, sort_keys=False)       
+                                
+                        else:
+                            break;
                     
                     
         return Processed(p, imgs, seedInit, "", all_prompts=all_prompts, infotexts=infotexts, all_seeds=all_seeds)

@@ -45,7 +45,7 @@ class CategoryList:
         scrl = ttk.Scrollbar(self.frame, orient=VERTICAL, command=self.lbox.yview)
         f = font.nametofont('TkTextFont')
         f.config(weight='bold')
-        lbl = ttk.Label(self.frame, text=self.cat,font=f)
+        self.catTitle = ttk.Label(self.frame, text=self.cat,font=f)
         self.dis = ttk.Checkbutton(self.frame, text="Disable", variable=self.disable, onvalue=True, command=self.cb_disabled)
         self.always = ttk.Checkbutton(self.frame, text="Don't Ignore", variable=self.noIgnore, onvalue=True)
         self.lbox.configure(yscrollcommand=scrl.set)
@@ -53,7 +53,7 @@ class CategoryList:
         self.lbox.bind("<Double-Button-1>", lambda e: self.cb_edit(self.lbox.get(self.lbox.curselection())))
         self.lbox.bind("<Button-3>", lambda e: self.cb_copy(self.lbox.get(self.lbox.curselection())))
         sep = ttk.Separator(self.frame, orient=HORIZONTAL)
-        weight = ttk.Spinbox(self.frame, format="%.1f",increment=0.1,from_=0.0, to=10.0, textvariable=self.weightVal, width=5, command=self.cb_change)
+        self.weight = ttk.Spinbox(self.frame, format="%.1f",increment=0.1,from_=0.0, to=10.0, textvariable=self.weightVal, width=5, command=self.cb_change)
         
         btnframe = ttk.Frame(self.frame)
         btnAdd = ttk.Button(btnframe, text='+', command=self.cb_add,width=1)
@@ -67,10 +67,10 @@ class CategoryList:
         self.lbox.grid(column=0, row=1, columnspan=4, sticky=(N,S,E,W))
         scrl.grid(column=4, row=1, sticky=(N,S,E,W))
         
-        lbl.grid(column=0, row=0, pady=0, sticky=(N,S,W))
+        self.catTitle.grid(column=0, row=0, pady=0, sticky=(N,S,W))
         self.dis.grid(column=2,row=0, sticky=(N,S,E))
         self.always.grid(column=3,row=0, sticky=(N,S,E))
-        weight.grid(column=1,row=0, sticky=(N,S,E),padx=2)
+        self.weight.grid(column=1,row=0, sticky=(N,S,E),padx=2)
         
         btnframe.grid(column=4,row=1,rowspan=2,sticky=(N,E,W))
         btnAdd.grid(column=0,row=0,sticky=(N,E,W))
@@ -197,8 +197,10 @@ class CategoryList:
         if len(i) > 0 and self.getDisabled() == False and i[0] > 0:
             p += '' if weight =='1.0' else '('
             sel = self.lbox.get(i)
-            p += self.dat[self.cat][sel]["Prompt"]
-            p += ':{0})'.format(weight) if weight != '1.0' else ''
+            i = self.dat[self.cat][sel]
+            if "Prompt" in i:
+                p += self.dat[self.cat][sel]["Prompt"]
+                p += ':{0})'.format(weight) if weight != '1.0' else ''
         return p
     
     def getNegativePrompt(self):
@@ -210,11 +212,74 @@ class CategoryList:
             if "NegPrompt" in i:
                 p = i["NegPrompt"]
         return p
+
+    def getSettings(self):
+        return ''
     
     def isUnspecified(self):
         i = self.lbox.curselection()
         return self.getDisabled() == False and i[0] == 0
+
+class SettingsList(CategoryList):
+    def __init__(self, root, data, cat, onselect):
+        super().__init__(root, data, cat, onselect)
+        self.noIgnore.set(True)
+        self.weight.grid_remove()
+        self.catTitle.config(text = "Settings")
+
+    def getSettings(self):
+        i = self.lbox.curselection()
+        p = ''
+        if len(i) > 0 and self.getDisabled() == False and i[0] > 0:
+            sel = self.lbox.get(i)
+            i = self.dat[self.cat][sel]
+            if "Setting" in i:
+                p = i["Setting"]
+        return p
+
+    def cb_copy(self, prompt):
+        setVal = self.dat[self.cat][prompt]["Setting"]
         
+        r = Tk()
+        r.withdraw()
+        r.clipboard_clear()
+        r.clipboard_append(setVal)
+        r.update()
+        r.destroy()
+            
+    def cb_edit(self, setting):
+        if setting == self.firstVal:
+            return
+        idx = self.lbox.curselection()
+        setVal = self.dat[self.cat][setting]["Setting"]
+        
+        isValid, newSetting, newSettingtVal = SettingsEdit(self.root).show(setting, setVal)
+        if isValid:
+            self.dat[self.cat][setting]["Setting"] = newSettingtVal
+             
+            self.dat[self.cat] = {newSetting if k == setting and newSetting != setting else k:v for k,v in self.dat[self.cat].items()}
+            self.relist(self.dat)
+            self.lbox.selection_set(idx)
+            self.cb_change(edited=True)
+    
+    def cb_add(self):
+        isValid, newSetting, newSettingtVal = SettingsEdit(self.root).show('', '')
+        
+        if isValid:
+            self.dat[self.cat][newSetting] = {}
+            self.dat[self.cat][newSetting]["Setting"] = newSettingtVal
+            self.relist(self.dat)
+            self.lbox.selection_set(len(self.dat[self.cat]))
+            self.cb_change(edited=True)
+
+            
+    def cb_delete(self, prompt):
+        answer = messagebox.askyesno(title='Confirmation',
+                    message="Are you sure that you want to delete '{0}'?\n\n{1}".format(prompt, self.dat[self.cat][prompt]["Setting"]))
+        if answer:
+            self.dat[self.cat].pop(prompt)
+            self.relist(self.dat)
+            self.cb_change(edited=True)
     
 class PromptEdit:
     def __init__(self, root):
@@ -266,6 +331,49 @@ class PromptEdit:
         self.valid = True
         self.dismiss()
 
+
+class SettingsEdit:
+    def __init__(self, root):
+        self.valid=False
+        self.dlg = Toplevel(root)
+        self.dlg.title("Edit Settings")
+        
+        self.sName = StringVar()
+        self.s = StringVar()
+
+        ttk.Label(self.dlg, text="Name:").grid(row=0, columnspan=2, sticky=(N,S,W))
+        self.sNameVal = ttk.Entry(self.dlg, textvariable=self.sName)
+        self.sNameVal.grid(row=1, columnspan=2, sticky=(N,S,E,W))
+        
+        ttk.Label(self.dlg, text="Settings:").grid(row=2, columnspan=2, sticky=(N,S,W))
+        self.settings = ttk.Entry(self.dlg, textvariable=self.s)
+        self.settings.grid(row=3, columnspan=2, sticky=(N,S,E,W))        
+        
+        ttk.Button(self.dlg, text="Confirm", command=self.confirm).grid(column=0,row=6)
+        ttk.Button(self.dlg, text="Cancel", command=self.dismiss).grid(column=1,row=6)
+        self.dlg.protocol("WM_DELETE_WINDOW", self.dismiss) # intercept close button
+        
+        self.dlg.grid_columnconfigure(0, weight=1)
+        self.dlg.grid_columnconfigure(1, weight=1)
+
+    def show(self, settingsName, settings):
+        
+        self.sNameVal.insert(0, settingsName)
+        self.settings.insert(0, settings)
+        
+        self.dlg.wait_visibility() # can't grab until window appears, so we wait
+        self.dlg.grab_set()        # ensure all input goes to our window
+        self.dlg.wait_window()     # block until window is destroyed
+        
+        return (self.valid, self.sName.get(), self.s.get())
+        
+    def dismiss(self):
+        self.dlg.grab_release()
+        self.dlg.destroy()
+        
+    def confirm(self):
+        self.valid = True
+        self.dismiss()
         
 
 class PromptPreview:
@@ -567,10 +675,20 @@ class Set:
             
         self.catList = []
         for idx, cat in enumerate(struct):
+            if cat == "_settings":
+                continue
             c = CategoryList(frame, struct, cat, self.listboxSelectionChanged)
             c.grid(column=0, row=idx, sticky=(N,W,E,S))
             frame.grid_rowconfigure(idx,weight=c.getPromptCount())
             self.catList.append(c)
+        if "_settings" not in struct:
+            struct["_settings"] = {}
+            with open(self.filename, 'w') as f:
+                yaml.dump(struct, f, sort_keys=False)
+
+        cs = SettingsList(frame, struct, "_settings", self.listboxSelectionChanged)
+        cs.grid(column=0, sticky=(N,W,E,S))
+        self.catList.append(cs)
         
         ppFrame = ttk.Frame(frame)
         ppFrame.grid(column=2, row = 0, rowspan=len(struct), sticky=(N,W,E,S))
@@ -662,16 +780,20 @@ class Set:
             
         pp = ''
         np = ''
+        sp = ''
         selDict = {}
         for c in self.catList:
             selDict.update(c.getSelectedPromptDict())
             p = c.getPrompt()
             n = c.getNegativePrompt()
+            s = c.getSettings()
             pp += p + ", " if p else ''
             np += n + ", " if n else ''
+            sp = s if s else ''
         pp = pp.removesuffix(", ")
         np = np.removesuffix(", ")
         pp += '\nNegative prompt: '+np if np else ''
+        pp += '\n' + sp if sp else ''
         
         self.pPreview.setText(pp)
         self.pPreview.setFocus()
@@ -733,8 +855,14 @@ class Set:
         with open(self.path + "\promptList.txt", 'w') as f:
             j = json.dumps(promptList)
             f.write(j)
-            
-        messagebox.showinfo("Prompt File created", f"Prompt File for {len(promptList)} previews created!")
+
+        pl = len(promptList["Prompts"])    
+        sl = len(promptList["Settings"])
+        tot = pl*sl
+        if sl == 0:
+            messagebox.showinfo("Prompt File created", f"Prompt File for {pl} previews created!")
+        else:
+            messagebox.showinfo("Prompt File created", f"Prompt File for {pl} previews created with {sl} setting(s) (={tot} images)!")
 
 class SetEdit:
     isValidEdit = False

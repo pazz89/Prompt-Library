@@ -209,11 +209,24 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
     
     previewData = GetCachedPreviewFile(path)
     
+    generationFile = {}
     promptList = []
     combinations = 0
     
     # create a list of categories which shouldn't be skipped because only one prompt was selected to create images for
     dontSkipList = []
+    settingsData = []
+    if "_settings" in promptData:
+        if 'dontIgnore' in promptData["_settings"]:
+            promptData["_settings"].pop('dontIgnore')
+        for s in promptData["_settings"]:
+            d = promptData["_settings"][s]
+            if 'dontIgnore' in d:
+                d.pop('dontIgnore')
+            d["SettingName"] = s
+            settingsData.append(d)
+        promptData.pop("_settings")
+
     for c in promptData:
         if 'dontIgnore' in promptData[c]:
             dontSkipList.append(c)
@@ -257,17 +270,27 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
             #check if a picture of the prompt combination already exists
             for p in promptNames:
                 commonFiles = set(previewData[catList[0]][p[0]]["Files"]) # init with files of the 1st prompt
-                prm = promptData[catList[0]][p[0]]["Prompt"]
+                
+                if "Prompt" in promptData[catList[0]][p[0]]:
+                    prm = promptData[catList[0]][p[0]]["Prompt"]
+                else:
+                    prm = ''
                 prompt = prm + ", " if prm else ''  # init prompt to create the picture
+
                 if "NegPrompt" in promptData[catList[0]][p[0]]:
                     nprm= promptData[catList[0]][p[0]]["NegPrompt"]
                 else:
                     nprm = ''
                 nprompt = nprm + ", " if nprm else ''  # init prompt to create the picture
+
                 for l in range(1,len(catList)):
                     #check if there is the same file for every prompt in this combination
                     commonFiles = set(commonFiles & set(previewData[catList[l]][p[l]]["Files"])) 
-                    prm = promptData[catList[l]][p[l]]["Prompt"]
+
+                    if "Prompt" in promptData[catList[l]][p[l]]:
+                        prm = promptData[catList[l]][p[l]]["Prompt"]
+                    else:
+                        prm = ''
                     prompt += prm + ", " if prm else ''
                     if "NegPrompt" in promptData[catList[l]][p[l]]:
                         nprm= promptData[catList[l]][p[l]]["NegPrompt"]
@@ -297,8 +320,10 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 trgt.update(finalPrompt)
                 if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
                     promptList.append(trgt)
-                
+
+    generationFile["Prompts"] = promptList
+    generationFile["Settings"] = settingsData    
     if fileList:
         return commonFiles
     else:
-        return promptList
+        return generationFile
