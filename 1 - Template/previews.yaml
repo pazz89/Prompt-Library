@@ -48,8 +48,6 @@ Style:
     - \2022-12-28\plib_-0008-1223423907.png
   Photography:
     Files: []
-  dontIgnore:
-    Files: []
 Negative:
   Ugly:
     Files:
@@ -62,3 +60,6 @@ Negative:
     - \2022-12-28\plib_-0006-1223423905.png
     - \2022-12-28\plib_-0007-1223423906.png
     - \2022-12-28\plib_-0008-1223423907.png
+_settings:
+  Euler:
+    Files: []

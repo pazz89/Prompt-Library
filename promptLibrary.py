@@ -687,11 +687,13 @@ class Set:
                 yaml.dump(struct, f, sort_keys=False)
 
         cs = SettingsList(frame, struct, "_settings", self.listboxSelectionChanged)
-        cs.grid(column=0, sticky=(N,W,E,S))
+        idx = len(struct)
+        cs.grid(column=0, row=idx,sticky=(N,W,E,S))
+        frame.grid_rowconfigure(idx,weight=cs.getPromptCount())
         self.catList.append(cs)
         
         ppFrame = ttk.Frame(frame)
-        ppFrame.grid(column=2, row = 0, rowspan=len(struct), sticky=(N,W,E,S))
+        ppFrame.grid(column=2, row = 0, rowspan=idx, sticky=(N,W,E,S))
         self.pPreview = PromptPreview(ppFrame, self.copyWithPreviewPara)
         self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
         
