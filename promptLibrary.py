@@ -681,6 +681,7 @@ class Set:
             c.grid(column=0, row=idx, sticky=(N,W,E,S))
             frame.grid_rowconfigure(idx,weight=c.getPromptCount())
             self.catList.append(c)
+            
         if "_settings" not in struct:
             struct["_settings"] = {}
             with open(self.filename, 'w') as f:
@@ -693,7 +694,7 @@ class Set:
         self.catList.append(cs)
         
         ppFrame = ttk.Frame(frame)
-        ppFrame.grid(column=2, row = 0, rowspan=idx, sticky=(N,W,E,S))
+        ppFrame.grid(column=2, row = 0, rowspan=idx+1, sticky=(N,W,E,S))
         self.pPreview = PromptPreview(ppFrame, self.copyWithPreviewPara)
         self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
         
