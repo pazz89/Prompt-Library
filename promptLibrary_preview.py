@@ -229,7 +229,8 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
 
     for c in promptData:
         if c == "_settings":
-            dontSkipList.append(c)
+            if promptData[c]:
+                dontSkipList.append(c)
         if 'dontIgnore' in promptData[c]:
             dontSkipList.append(c)
             promptData[c].pop('dontIgnore') # remove to don't mess up prompts
@@ -324,7 +325,9 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
                     promptList.append(trgt)
 
-    generationFile["Prompts"] = promptList
+    promptList_noDuplicates = []
+    [promptList_noDuplicates.append(x) for x in promptList if x not in promptList_noDuplicates] 
+    generationFile["Prompts"] = promptList_noDuplicates
     generationFile["Settings"] = settingsData    
     if fileList:
         return commonFiles
