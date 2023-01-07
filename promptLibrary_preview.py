@@ -225,9 +225,11 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 d.pop('dontIgnore')
             d["SettingName"] = s
             settingsData.append(d)
-        promptData.pop("_settings")
+        #promptData.pop("_settings")
 
     for c in promptData:
+        if c == "_settings":
+            dontSkipList.append(c)
         if 'dontIgnore' in promptData[c]:
             dontSkipList.append(c)
             promptData[c].pop('dontIgnore') # remove to don't mess up prompts
@@ -307,7 +309,8 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 trgt['cat'] = {}
                 for l in range(0,len(catList)):
                     trgt['cat'][catList[l]] = p[l]
-                    
+                trgt['cat'].pop("_settings", None)
+
                 # finalPrompt = f"--prompt '{prompt}' --negative_prompt '{nprompt}'"
                 finalPrompt = {}
                 finalPrompt['prompt'] = prompt

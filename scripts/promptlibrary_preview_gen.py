@@ -301,7 +301,8 @@ class Script(scripts.Script):
                                     ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
                                     
                                     relFName = ifName.replace(previewPath, '')
-                                    previewData["_settings"][set["_settingName"]]['Files'].append(relFName)
+                                    if settings[0]:
+                                        previewData["_settings"][set["_settingName"]]['Files'].append(relFName)
                                     for ct in jobs[j]["cat"]:
                                         prmpt = jobs[j]["cat"][ct]
                                         previewData[ct][prmpt]['Files'].append(relFName)
