@@ -12,6 +12,7 @@ from tkinter import *
 from tkinter import ttk
 from tkinter import messagebox
 from tkinter import font
+from tkinter.simpledialog import askstring
 from PIL import ImageTk, Image  
 
 import yaml
@@ -21,6 +22,7 @@ import itertools
 
 import os
 import os.path
+import shutil
 
 import re
 
@@ -1105,6 +1107,25 @@ def main():
         hasChanges = SetEdit(root, '').show()
         if hasChanges:
             sets = addSets(n,0)
+
+    def on_copy():
+        global sets
+        pset = n.tab(n.select(), "text")
+        newSet = askstring(f"Copy Set", f"Input Name for copy of {pset}", parent=root)
+        if newSet:
+            if os.path.exists(newSet):
+                messagebox.showerror("Save Error", "A set with this name already exists!", parent=root)
+                return
+            try:
+                os.mkdir(newSet)
+            except:
+                messagebox.showerror("Save Error", "Failed to create folder!", parent=root)
+                return
+
+            oldFile = pset + '\config.yaml'
+            newFile = newSet + '\config.yaml'
+            shutil.copyfile(oldFile, newFile)
+            sets = addSets(n,0)
             
     def on_createPreviewListMissing():
         on_createPreviewList(True)
@@ -1159,6 +1180,7 @@ def main():
     previewmenu = Menu(menubar, tearoff=0)
     filemenu.add_command(label="New", command=on_new)
     filemenu.add_command(label="Edit", command=on_edit)
+    filemenu.add_command(label="Copy", command=on_copy)
     previewmenu.add_command(label="Create list of missing previews (from selection)", command=on_createPreviewListMissing)
     previewmenu.add_command(label="Create list of all previews (from selection)", command=on_createPreviewListAll)
     menubar.add_cascade(label="Sets", menu=filemenu)
