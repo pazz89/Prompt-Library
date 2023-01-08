@@ -33,9 +33,9 @@ def timer(func):
 @timer
 def SyncPreviewList(promptData, path):
     filename = path + '\previews.yaml'
-    SetCachedPerviewFileDirty(path)
-    previewData = GetCachedPreviewFile(path)
-    try:        
+    try:       
+        SetCachedPerviewFileDirty(path)
+        previewData = GetCachedPreviewFile(path) 
         # complement preview list with new prompts
         for cat in promptData:
             if cat not in previewData:

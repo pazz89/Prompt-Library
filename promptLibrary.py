@@ -1118,6 +1118,7 @@ def main():
                 return
             try:
                 os.mkdir(newSet)
+                os.mkdir(newSet + "\\_previews")
             except:
                 messagebox.showerror("Save Error", "Failed to create folder!", parent=root)
                 return
