@@ -32,12 +32,10 @@ def timer(func):
 
 @timer
 def SyncPreviewList(promptData, path):
-    
     filename = path + '\previews.yaml'
-    try:
-        with open(filename) as f:
-            previewData = yaml.load(f, Loader=SafeLoader)
-        
+    SetCachedPerviewFileDirty(path)
+    previewData = GetCachedPreviewFile(path)
+    try:        
         # complement preview list with new prompts
         for cat in promptData:
             if cat not in previewData:
