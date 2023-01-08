@@ -1127,6 +1127,19 @@ def main():
             newFile = newSet + '\config.yaml'
             shutil.copyfile(oldFile, newFile)
             sets = addSets(n,0)
+
+            
+    def on_copyPath():
+        global sets
+        pset = n.tab(n.select(), "text")
+        path = os.getcwd() + "\\" + pset
+
+        r = Tk()
+        r.withdraw()
+        r.clipboard_clear()
+        r.clipboard_append(path)
+        r.update()
+        r.destroy()
             
     def on_createPreviewListMissing():
         on_createPreviewList(True)
@@ -1184,6 +1197,8 @@ def main():
     filemenu.add_command(label="Copy", command=on_copy)
     previewmenu.add_command(label="Create list of missing previews (from selection)", command=on_createPreviewListMissing)
     previewmenu.add_command(label="Create list of all previews (from selection)", command=on_createPreviewListAll)
+    previewmenu.add_separator()
+    previewmenu.add_command(label="Copy Path to Clipboard", command=on_copyPath)
     menubar.add_cascade(label="Sets", menu=filemenu)
     menubar.add_cascade(label="Preview", menu=previewmenu)
     root.config(menu=menubar)
