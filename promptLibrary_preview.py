@@ -82,6 +82,9 @@ def SyncPreviewList(promptData, path):
         yaml.dump(previewData, f, sort_keys=False)    
         
     DeleteRefToMissingImages(path)
+    
+    SetCachedPerviewFileDirty(path)
+    previewData = GetCachedPreviewFile(path) 
 
 @timer        
 def DeleteRefToMissingImages(path):

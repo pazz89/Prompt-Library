@@ -548,7 +548,7 @@ class ImagePreview:
     def SetPreviewIndex(self, index):
         if self.hasImage == False:
             return
-        self.imgIdx = index if index <= len(self.images) else 1
+        self.imgIdx = index if index <= len(self.images) and index > 0 else 1
         self.SetImage(self.imgPath + self.images[self.imgIdx-1][1])
         self.UpdateVisRefLabel()
         
@@ -762,6 +762,7 @@ class Set:
             data[c] = d
         SyncPreviewList(data, self.path)
         self.listboxSelectionChanged()
+        print(selectPreview)
         self.iPreview.SetPreviewIndex(selectPreview)
     
     def cb_imageSelectPrompts(self, selection):
