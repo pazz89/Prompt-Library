@@ -160,7 +160,9 @@ class Script(scripts.Script):
                 return
 
             name = setting["_settingName"]
-            print('\n' + f"Applying Setting {name}")
+            infotx = '\n' + f"Applying Setting {name}"
+            print(infotx)
+            print(''.ljust(len(infotx)-1, '-'))   
             if "Model" in setting:
                 ckp = setting["Model"]
                 info = modules.sd_models.get_closet_checkpoint_match(ckp)
@@ -228,9 +230,12 @@ class Script(scripts.Script):
         for job in data:
             job_count += len(job.Prompts)
             totIteration += math.ceil(job_count / p.batch_size)
-            
-        print(f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times, using {len(data)} settings. Total of {totIteration*p.n_iter} jobs")
-        state.job_count = job_count*p.n_iter
+
+        infotx = f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times, using {len(data)} settings. Total of {totIteration*p.n_iter} jobs"
+        print('\n'+''.ljust(len(infotx), '-'))    
+        print(infotx)
+        print(''.ljust(len(infotx), '-'))   
+        state.job_count = totIteration*p.n_iter
 
         if p.seed == -1:
             p.seed = int(random.randrange(4294967294))
@@ -291,8 +296,10 @@ class Script(scripts.Script):
                             else:
                                 p.seed.append(seedInit + j)
                             p.batch_size +=1  
-                            
-                        print(f"\nPreview {batchStart} to {batchEnd} of {toProcessPrompts} of setting {setIdx+1} (Iteration #{n+1})")    
+                        
+                        infotx = f"\nPreview {batchStart} to {batchEnd} of {toProcessPrompts} of setting {setIdx+1} (Iteration #{n+1})"  
+                        print('\n' + infotx)
+                        print(''.ljust(len(infotx)-1, '-'))   
                         proc = process_images(p)
                         state.job = f"{state.job_no} out of {state.job_count}" 
 
@@ -327,5 +334,7 @@ class Script(scripts.Script):
                         else:
                             break;
                     
-                    
+            infotx = f"Finished! Created {len(all_prompts)} images"  
+            print('\n\n' + infotx)
+            print(''.ljust(len(infotx), '-') + '\n')               
         return Processed(p, imgs, seedInit, "", all_prompts=all_prompts, infotexts=infotexts, all_seeds=all_seeds)
