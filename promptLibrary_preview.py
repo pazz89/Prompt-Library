@@ -210,11 +210,7 @@ def PreviewExlusivityCore(promptData, previewData, files):
 def PreviewList(promptData, path, missingOnly, fileList = False):
     
     previewData = GetCachedPreviewFile(path)
-    
-    generationFile = {}
-    promptList = []
-    combinations = 0
-    
+        
     # create a list of categories which shouldn't be skipped because only one prompt was selected to create images for
     dontSkipList = []
     settingsData = []
@@ -227,7 +223,7 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 d.pop('dontIgnore')
             d["SettingName"] = s
             settingsData.append(d)
-        #promptData.pop("_settings")
+        promptData.pop("_settings")
 
     for c in promptData:
         if c == "_settings":
@@ -250,6 +246,9 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
         promptData["_settings"] = {}
         if setting:
             promptData["_settings"][setting["SettingName"]] = setting["Setting"]
+        
+        promptList = []
+        combinations = 0
 
     # Loop through every possible category combination count (i.e. 3 Categories = 1-3)
         for i in range(1, len(promptData)+1): 
@@ -334,6 +333,7 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                     trgt.update(finalPrompt)
                     if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
                         promptList.append(trgt)
+    
 
         promptList_noDuplicates = []
         [promptList_noDuplicates.append(x) for x in promptList if x not in promptList_noDuplicates] 
