@@ -261,7 +261,7 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                 # for the given Category combination, create a list of all possible Prompt combinations
                 # but don't do combinations if an element of the don't skip list  is not in the catList
                 skip = False
-                for c in dontSkipList + ["_settings"]: 
+                for c in dontSkipList + ["_settings"] if setting else dontSkipList: 
                     if c not in catList:
                         skip = True
                         break
