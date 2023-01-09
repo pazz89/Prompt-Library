@@ -858,16 +858,18 @@ class Set:
         promptList = PreviewList(previewData, self.path, missing)
         # print(promptList)
         with open(self.path + "\promptList.txt", 'w') as f:
-            j = json.dumps(promptList)
+            j = json.dumps([gen._asdict() for gen in promptList])
             f.write(j)
 
-        pl = len(promptList["Prompts"])    
-        sl = len(promptList["Settings"])
-        tot = pl*sl
-        if sl == 0:
+        pl = 0
+        for s in promptList:
+            pl  += len(s.Prompts)  
+        sl = len(promptList)
+        
+        if not promptList or not promptList[0].Settings:
             messagebox.showinfo("Prompt File created", f"Prompt File for {pl} previews created!")
         else:
-            messagebox.showinfo("Prompt File created", f"Prompt File for {pl} previews created with {sl} setting(s) (={tot} images)!")
+            messagebox.showinfo("Prompt File created", f"Prompt File for {pl} previews created using {sl} setting(s)!")
 
 class SetEdit:
     isValidEdit = False

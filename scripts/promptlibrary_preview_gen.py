@@ -23,6 +23,10 @@ import modules.shared as shared
 import modules.sd_samplers
 import modules.sd_models
 
+from collections import namedtuple
+
+Generation = namedtuple('Generation', ['Settings', 'Prompts'])
+
 def process_string_tag(tag):
     return tag
 
@@ -192,25 +196,6 @@ class Script(scripts.Script):
         
         assert os.path.isfile(promptList), f'missing list for preview generation'
         assert os.path.isfile(previewFile), f'missing preview file'
-        
-        with open(promptList, 'r') as f:     
-            s = f.read()
-            data = json.loads(s)
-            jobs = data["Prompts"]
-            _settings = data["Settings"]
-
-        settings = []
-        for s in _settings:
-            para = parse_generation_parameters(s["Setting"]+ ", Dummy1: well, Dummy2: lol")
-            para["_settingName"] = s["SettingName"]
-            settings.append(para)
-        
-        if settings:
-            setLen = len(settings)
-        else:
-            settings.append({})
-            setLen = 1
-
         with open(previewFile, 'r') as f:
             previewData = yaml.load(f, Loader=SafeLoader)
         
@@ -224,11 +209,29 @@ class Script(scripts.Script):
         if save_to_webui == False:
             p.n_iter = 1
 
-        job_count = len(jobs)       
-        tot_job_count = job_count * setLen    
+
+        data = []
+        with open(promptList, 'r') as f:     
+            lst = json.loads(f.read())
+            for e in lst:
+                data.append(Generation(**e))
+
+        settings = []
+        for s in data:
+            para = parse_generation_parameters(s.Settings["Setting"]+ ", Dummy1: well, Dummy2: lol")
+            para["_settingName"] = s.Settings["SettingName"]
+            settings.append(para)
+        checkSettings(settings)
+
+        job_count = 0
+        totIteration = 0
+        for job in data:
+            job_count += len(job.Prompts)
+            totIteration += math.ceil(job_count / p.batch_size)
             
-        totIteration = math.ceil(job_count / p.batch_size)
-        print(f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times, each with {setLen} settings. Total of {totIteration*p.n_iter*setLen} jobs")
+        print(f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times, using {len(data)} settings. Total of {totIteration*p.n_iter} jobs")
+        state.job_count = job_count*p.n_iter
+
         if p.seed == -1:
             p.seed = int(random.randrange(4294967294))
 
@@ -242,28 +245,38 @@ class Script(scripts.Script):
         batch_count = math.ceil(job_count / p.batch_size)
         c_batch_size = p.batch_size
         
-        checkSettings(settings)
         startSeed = p.seed
         with SharedSettingsStackHelper():
             for n in range(p.n_iter):
-                for setIdx, set in enumerate(settings):
+                if state.interrupted or state.skipped:
+                    break;
+                for setIdx, generation in enumerate(data):
+                    if state.interrupted or state.skipped:
+                        break;
+                    jobs = generation.Prompts
+                    setting = generation.Settings
+                    if setting:
+                        para = parse_generation_parameters(setting["Setting"]+ ", Dummy1: well, Dummy2: lol")
+                        para["_settingName"] = setting["SettingName"]
+                        applySettings(para)
+                    
                     p.batch_size = c_batch_size
-                    applySettings(set)
-                    state.job_count = (batch_count)*p.n_iter*setLen
+                    processedPrompts = 0
+                    toProcessPrompts = len(jobs)
 
                     if checkbox_same_seed:
                         seedInit = startSeed + n
                     else:
-                        seedInit = startSeed + n * job_count
+                        seedInit = startSeed + n * processedPrompts
                         
-                    for i in range(0,job_count,p.batch_size):
+                    for i in range(0,toProcessPrompts,p.batch_size):
                         p.prompt = []
                         p.negative_prompt = []
                         p.seed = []
                         
                         batchStart = i
                         batchEnd = i+p.batch_size
-                        batchEnd = batchEnd if batchEnd <= job_count else job_count
+                        batchEnd = batchEnd if batchEnd <= toProcessPrompts else toProcessPrompts
                         p.batch_size = 0
                         
                         for j in range(batchStart, batchEnd):
@@ -279,13 +292,14 @@ class Script(scripts.Script):
                                 p.seed.append(seedInit + j)
                             p.batch_size +=1  
                             
-                        print(f"\nPreview {batchStart} to {batchEnd} of {job_count} of setting {setIdx+1} (Iteration #{n+1})")    
-                        state.job = f"{state.job_no + 1} out of {state.job_count}" 
-                        
+                        print(f"\nPreview {batchStart} to {batchEnd} of {toProcessPrompts} of setting {setIdx+1} (Iteration #{n+1})")    
                         proc = process_images(p)
+                        state.job = f"{state.job_no} out of {state.job_count}" 
+
+                        processedPrompts += p.batch_size
                         
                         if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
-                            
+
                             if save_to_webui:
                                 imgs += proc.images
                             else:
@@ -301,8 +315,8 @@ class Script(scripts.Script):
                                     ifName,_ = images.save_image(proc.images[i], previewPath, basename, p.seed[i], p.prompt[i], opts.samples_format, info=proc.infotexts[i], p=p)
                                     
                                     relFName = ifName.replace(previewPath, '')
-                                    if settings[0]:
-                                        previewData["_settings"][set["_settingName"]]['Files'].append(relFName)
+                                    if setting:
+                                        previewData["_settings"][para["_settingName"]]['Files'].append(relFName)
                                     for ct in jobs[j]["cat"]:
                                         prmpt = jobs[j]["cat"][ct]
                                         previewData[ct][prmpt]['Files'].append(relFName)

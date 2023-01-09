@@ -14,6 +14,10 @@ import os.path
 import functools
 import time
 
+from collections import namedtuple
+ 
+Generation = namedtuple('Generation', ['Settings', 'Prompts'])
+
 previewFileCache = {}
 previewFileCacheDirty = {}
 previewFileCacheModTime = {}
@@ -238,96 +242,107 @@ def PreviewList(promptData, path, missingOnly, fileList = False):
                     dontSkipList.append(c)
                     promptData[c][p].pop('dontIgnore') # remove to don't mess up prompts
                     
-            
+    if not settingsData:
+        settingsData.append({})
+
+    generationList = []
+    for setting in settingsData:
+        promptData["_settings"] = {}
+        if setting:
+            promptData["_settings"][setting["SettingName"]] = setting["Setting"]
+
     # Loop through every possible category combination count (i.e. 3 Categories = 1-3)
-    for i in range(1, len(promptData)+1): 
-        
-        # Loop through List of every possible category combination with the given combination count
-        for catList in itertools.combinations(promptData, i):
-            # for the given Category combination, create a list of all possible Prompt combinations
-            # but don't do combinations if an element of the don't skip list  is not in the catList
-            skip = False
-            for c in dontSkipList: 
-                if c not in catList:
-                    skip = True
-                    break
-            if skip:
-                continue
+        for i in range(1, len(promptData)+1): 
             
-            # print("-----")
-            lst = [list(promptData[catList[0]])] # List of all prompts from 1st category as init value
-            # print("\t", catList[0])
-            
-            # Append the prompts from the other categories
-            for j in range(1,i):
-                # print("\t", catList[j])
-                lst2 = list(promptData[catList[j]])
-                lst.append(lst2)
-            
-            # calculate Cartesian product to get all prompt combinations 
-            promptNames = list(itertools.product(*lst))
-            combinations += len(promptNames) #calculate total combination count
-
-            #check if a picture of the prompt combination already exists
-            for p in promptNames:
-                commonFiles = set(previewData[catList[0]][p[0]]["Files"]) # init with files of the 1st prompt
+            # Loop through List of every possible category combination with the given combination count
+            for catList in itertools.combinations(promptData, i):
+                # for the given Category combination, create a list of all possible Prompt combinations
+                # but don't do combinations if an element of the don't skip list  is not in the catList
+                skip = False
+                for c in dontSkipList: 
+                    if c not in catList:
+                        skip = True
+                        break
+                if skip:
+                    continue
                 
-                if "Prompt" in promptData[catList[0]][p[0]]:
-                    prm = promptData[catList[0]][p[0]]["Prompt"]
-                else:
-                    prm = ''
-                prompt = prm + ", " if prm else ''  # init prompt to create the picture
+                # print("-----")
+                lst = [list(promptData[catList[0]])] # List of all prompts from 1st category as init value
+                # print("\t", catList[0])
+                
+                # Append the prompts from the other categories
+                for j in range(1,i):
+                    # print("\t", catList[j])
+                    lst2 = list(promptData[catList[j]])
+                    lst.append(lst2)
+                
+                # calculate Cartesian product to get all prompt combinations 
+                promptNames = list(itertools.product(*lst))
+                combinations += len(promptNames) #calculate total combination count
 
-                if "NegPrompt" in promptData[catList[0]][p[0]]:
-                    nprm= promptData[catList[0]][p[0]]["NegPrompt"]
-                else:
-                    nprm = ''
-                nprompt = nprm + ", " if nprm else ''  # init prompt to create the picture
-
-                for l in range(1,len(catList)):
-                    #check if there is the same file for every prompt in this combination
-                    commonFiles = set(commonFiles & set(previewData[catList[l]][p[l]]["Files"])) 
-
-                    if "Prompt" in promptData[catList[l]][p[l]]:
-                        prm = promptData[catList[l]][p[l]]["Prompt"]
+                #check if a picture of the prompt combination already exists
+                for p in promptNames:
+                    commonFiles = set(previewData[catList[0]][p[0]]["Files"]) # init with files of the 1st prompt
+                    
+                    if "Prompt" in promptData[catList[0]][p[0]]:
+                        prm = promptData[catList[0]][p[0]]["Prompt"]
                     else:
                         prm = ''
-                    prompt += prm + ", " if prm else ''
-                    if "NegPrompt" in promptData[catList[l]][p[l]]:
-                        nprm= promptData[catList[l]][p[l]]["NegPrompt"]
+                    prompt = prm + ", " if prm else ''  # init prompt to create the picture
+
+                    if "NegPrompt" in promptData[catList[0]][p[0]]:
+                        nprm= promptData[catList[0]][p[0]]["NegPrompt"]
                     else:
-                        nprm = ''    
-                    nprompt += nprm + ", " if nprm else ''  # init prompt to create the picture
-                        
-                prompt = prompt.removesuffix(", ")
-                nprompt = nprompt.removesuffix(", ")
-                
-                # create list for which prompts this picture will be generated if not already available
-                  
-                trgt = {}
-                trgt['cat'] = {}
-                for l in range(0,len(catList)):
-                    trgt['cat'][catList[l]] = p[l]
-                trgt['cat'].pop("_settings", None)
+                        nprm = ''
+                    nprompt = nprm + ", " if nprm else ''  # init prompt to create the picture
 
-                # finalPrompt = f"--prompt '{prompt}' --negative_prompt '{nprompt}'"
-                finalPrompt = {}
-                finalPrompt['prompt'] = prompt
-                finalPrompt['negative_prompt'] = nprompt
-                
-                try:
-                    exclusivity = min(PreviewExlusivityCore(catList, previewData, commonFiles)[0])
-                except:
-                    exclusivity = -1
-                trgt.update(finalPrompt)
-                if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
-                    promptList.append(trgt)
+                    for l in range(1,len(catList)):
+                        #check if there is the same file for every prompt in this combination
+                        commonFiles = set(commonFiles & set(previewData[catList[l]][p[l]]["Files"])) 
 
-    promptList_noDuplicates = []
-    [promptList_noDuplicates.append(x) for x in promptList if x not in promptList_noDuplicates] 
-    generationFile["Prompts"] = promptList_noDuplicates
-    generationFile["Settings"] = settingsData    
+                        if "Prompt" in promptData[catList[l]][p[l]]:
+                            prm = promptData[catList[l]][p[l]]["Prompt"]
+                        else:
+                            prm = ''
+                        prompt += prm + ", " if prm else ''
+                        if "NegPrompt" in promptData[catList[l]][p[l]]:
+                            nprm= promptData[catList[l]][p[l]]["NegPrompt"]
+                        else:
+                            nprm = ''    
+                        nprompt += nprm + ", " if nprm else ''  # init prompt to create the picture
+                            
+                    prompt = prompt.removesuffix(", ")
+                    nprompt = nprompt.removesuffix(", ")
+                    
+                    # create list for which prompts this picture will be generated if not already available
+                    
+                    trgt = {}
+                    trgt['cat'] = {}
+                    for l in range(0,len(catList)):
+                        trgt['cat'][catList[l]] = p[l]
+                    trgt['cat'].pop("_settings", None)
+
+                    # finalPrompt = f"--prompt '{prompt}' --negative_prompt '{nprompt}'"
+                    finalPrompt = {}
+                    finalPrompt['prompt'] = prompt
+                    finalPrompt['negative_prompt'] = nprompt
+                    
+                    try:
+                        exclusivity = min(PreviewExlusivityCore(catList, previewData, commonFiles)[0])
+                    except:
+                        exclusivity = -1
+                    trgt.update(finalPrompt)
+                    if len(commonFiles) == 0 or missingOnly == False or exclusivity != 0:
+                        promptList.append(trgt)
+
+        promptList_noDuplicates = []
+        [promptList_noDuplicates.append(x) for x in promptList if x not in promptList_noDuplicates] 
+        if len(promptList_noDuplicates) > 0:
+            gen = Generation(Settings=setting, Prompts=promptList_noDuplicates)
+            generationList.append(gen)
+
+ 
     if fileList:
         return commonFiles
     else:
-        return generationFile
+        return generationList
