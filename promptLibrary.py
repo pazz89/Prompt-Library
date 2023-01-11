@@ -838,16 +838,19 @@ class GridPreview:
             xy.append(x)
             xyImg.append(xImg)
 
-        textsize = 12
-        textsize_s = 10
-        padding = (textsize+5,textsize+5)
-        fnt = ImageFont.truetype("arial.ttf", textsize)
-        fnt_s = ImageFont.truetype("arial.ttf", int(textsize_s))
 
         if fullsize:
             bgColor = (255, 255, 255, 255)
+            textsize = 20
+            textsize_s = 12
         else:
             bgColor = (0, 0, 0, 0)
+            textsize = 12
+            textsize_s = 10
+
+        padding = (textsize+5,textsize+5)
+        fnt = ImageFont.truetype("arial.ttf", textsize)
+        fnt_s = ImageFont.truetype("arial.ttf", int(textsize_s))
 
         w, h = wMax, hMax
         if w == 0 or h == 0:
