@@ -889,6 +889,7 @@ class GridPreview:
 class Set:
     dirty = False
     gridView = False
+    tempSingleView = False
     def __init__(self, root, name):    
         self.path = name
         self.filename = self.path + '\config.yaml'
@@ -959,13 +960,23 @@ class Set:
     def cb_toggleGridView(self):
         if self.gridView:
             self.gridView = False
-            self.gPreview.grid_remove()
-            self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+            self.setSinglePreview()
         else:
             self.gridView = True
-            self.iPreview.grid_remove()
-            self.gPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+            if not self.tempSingleView:
+                self.setGridPreview()
 
+        self.updatePreviewStyleChange()
+
+    def setGridPreview(self):
+        self.iPreview.grid_remove()
+        self.gPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+
+    def setSinglePreview(self):
+        self.gPreview.grid_remove()
+        self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+    
+    def updatePreviewStyleChange(self):
         self.frame.update()
         self.listboxSelectionChanged()
 
@@ -1072,7 +1083,18 @@ class Set:
                 if c.isUnspecified():
                     notSetCat.append(c.getName())
             gridCombo = list(itertools.combinations(notSetCat, 2))
-            self.gPreview.previewFromSelection(selDict, gridCombo)
+            if len(gridCombo) > 0:
+                if self.tempSingleView:
+                    self.setGridPreview()
+                    self.tempSingleView = False
+                    self.updatePreviewStyleChange()
+                self.gPreview.previewFromSelection(selDict, gridCombo)
+            else:
+                if not self.tempSingleView:
+                    self.setSinglePreview()
+                    self.tempSingleView = True
+                    self.updatePreviewStyleChange()
+                self.previewFromSelection(selDict)
         else:
             self.previewFromSelection(selDict)
         
