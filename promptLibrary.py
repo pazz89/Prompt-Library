@@ -714,7 +714,10 @@ class GridPreview:
             self.PreviousImage(event)
     
     def cb_showImage(self,event):
+        self.frame.config(cursor="wait")
+        self.frame.update()
         self.ShowFullSizeImage(self.xlabel, self.ylabel)
+        self.frame.config(cursor="")
         
     def NextImage(self, event):
         if self.hasImage == False:
