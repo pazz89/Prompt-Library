@@ -149,12 +149,12 @@ class CategoryList:
         if isValid:
             self.dat[self.cat][newPrompt] = {}
             self.dat[self.cat][newPrompt]["Prompt"] = newPromptVal
-            self.relist(self.dat)
             if newNegPromptVal:
                 self.dat[self.cat][newPrompt]["NegPrompt"] = {}
                 self.dat[self.cat][newPrompt]["NegPrompt"] = newNegPromptVal
-            self.lbox.selection_set(len(self.dat[self.cat]))
             self.cb_change(edited=True)
+            self.relist(self.dat)
+            # self.lbox.selection_set(len(self.dat[self.cat]))
     
     def cb_delete(self, prompt):
         answer = messagebox.askyesno(title='Confirmation',
@@ -220,6 +220,8 @@ class CategoryList:
     
     def isUnspecified(self):
         i = self.lbox.curselection()
+        if not i:
+            return True
         return self.getDisabled() == False and i[0] == 0
 
 class SettingsList(CategoryList):
@@ -270,9 +272,9 @@ class SettingsList(CategoryList):
         if isValid:
             self.dat[self.cat][newSetting] = {}
             self.dat[self.cat][newSetting]["Setting"] = newSettingtVal
-            self.relist(self.dat)
-            self.lbox.selection_set(len(self.dat[self.cat]))
             self.cb_change(edited=True)
+            self.relist(self.dat)
+            # self.lbox.selection_set(len(self.dat[self.cat]))
 
             
     def cb_delete(self, prompt):
