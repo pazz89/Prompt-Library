@@ -47,11 +47,13 @@ def SyncPreviewList(promptData, path):
                 for prompt in promptData[cat]:
                     previewData[cat][prompt] = {}
                     previewData[cat][prompt]["Files"] = []
+                    SetCachedPerviewFileDirty(path)
             else:
                 for prompt in promptData[cat]:
                     if prompt not in previewData[cat]:
                         previewData[cat][prompt] = {}
                         previewData[cat][prompt]["Files"] = []
+                        SetCachedPerviewFileDirty(path)
                         
     except:
         # create new preview list from prompts
@@ -61,6 +63,7 @@ def SyncPreviewList(promptData, path):
             for prompt in promptData[cat]:
                 previewData[cat][prompt] = {}
                 previewData[cat][prompt]["Files"] = []
+                SetCachedPerviewFileDirty(path)
     
     # check for legacy prompts in the preview list             
     unlistedPreviewCandidates = []
@@ -69,11 +72,13 @@ def SyncPreviewList(promptData, path):
             for prompt in list(previewData[cat]):
                 unlistedPreviewCandidates += previewData[cat][prompt]["Files"]
             previewData.pop(cat)
+            SetCachedPerviewFileDirty(path)
         else:
             for prompt in list(previewData[cat]):
                 if prompt not in promptData[cat]:
                     unlistedPreviewCandidates += previewData[cat][prompt]["Files"]
                     previewData[cat].pop(prompt)
+                    SetCachedPerviewFileDirty(path)
                     
     # verify if legacy prompts had previews attached which are not needed anymore                
     VerifyPreviewListing(unlistedPreviewCandidates, previewData, path)     
@@ -83,7 +88,6 @@ def SyncPreviewList(promptData, path):
         
     DeleteRefToMissingImages(path)
     
-    SetCachedPerviewFileDirty(path)
     previewData = GetCachedPreviewFile(path) 
 
 @timer        
@@ -98,6 +102,7 @@ def DeleteRefToMissingImages(path):
                     for f in list(previewData[cat][prompt]["Files"]):
                         if os.path.isfile(picsPath + f) == False:
                             previewData[cat][prompt]["Files"].remove(f)
+                            SetCachedPerviewFileDirty(path)
             
          
         with open(filename, 'w') as f:

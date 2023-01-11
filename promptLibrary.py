@@ -6,27 +6,27 @@ Created on Thu Dec 15 17:48:56 2022
 """
 # from PIL import Image, PngImagePlugin
 
-import time
-
-from tkinter import *
-from tkinter import ttk
-from tkinter import messagebox
-from tkinter import font
-from tkinter.simpledialog import askstring
-from PIL import ImageTk, Image  
-
-import yaml
-from yaml.loader import SafeLoader
-import json
 import itertools
-
+import json
 import os
 import os.path
-import shutil
-
 import re
+import shutil
+import time
+import math
+from tkinter import *
+from tkinter import font, messagebox, ttk
+from tkinter.simpledialog import askstring
 
-from promptLibrary_preview import PreviewList, SyncPreviewList, PreviewFiles, PreviewExlusivity, timer, DeleteRefToMissingImages, SetCachedPerviewFileDirty
+import yaml
+from PIL import Image, ImageTk, ImageFont, ImageDraw, ImageOps
+from yaml.loader import SafeLoader
+
+from promptLibrary_preview import (DeleteRefToMissingImages, PreviewExlusivity,
+                                   PreviewFiles, PreviewList,
+                                   SetCachedPerviewFileDirty, SyncPreviewList,
+                                   timer)
+
 
 class CategoryList:
     firstVal = "-"
@@ -607,7 +607,11 @@ class ImagePreview:
         
         
     def SetImage(self, fImg):
-        self.imgOrig = Image.open(fImg)
+        if isinstance(fImg, str):
+            self.imgOrig = Image.open(fImg)
+        else:
+            self.imgOrig = fImg
+
         
         self.iInfo.config(state=NORMAL)
         info = self.imgOrig.info
@@ -644,8 +648,6 @@ class ImagePreview:
         except:
             return ''
         
-            
-        
     def ClearImage(self):
         self.delBtn.config(state=DISABLED)
         self.cpyBtn.config(state=DISABLED)
@@ -660,17 +662,228 @@ class ImagePreview:
 
     def grid(self, **kwargs):
         self.frame.grid(kwargs)
+
+    def grid_remove(self):
+        self.frame.grid_remove()
     
-                
+class GridPreview:
+    imgIdx = 0
+    def __init__(self, root, catList, path, cb_commonFiles):
+        self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
+        self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
+        self.canvas.grid(row = 1,sticky=(N,S,E,W),columnspan=3)
+        self.commonFiles = cb_commonFiles
+        self.catList = catList
+        self.path = path
+        
+        f = font.nametofont('TkTextFont')
+        f.config(weight='bold')
+        self.lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
+        self.lbl.grid(row=0,sticky=(N,S,E,W),columnspan=3)
+        
+        self.canvas.bind("<Button-1>", self.NextImage)
+        self.canvas.bind("<Button-4>", self.NextImage)
+        self.canvas.bind("<Button-2>", self.PreviousImage)
+        self.canvas.bind("<Button-3>", self.PreviousImage)
+        self.canvas.bind("<Button-5>", self.PreviousImage)
+        self.canvas.bind("<MouseWheel>", self.ScrollImage)
+
+        self.frame.grid_rowconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1)
+        self.hasImage = False              
+
+    def grid(self, **kwargs):
+        self.frame.grid(kwargs)
+
+    def grid_remove(self):
+        self.frame.grid_remove()
+
+    def ScrollImage(self, event):
+        if event.delta < 0:
+            self.NextImage(event)
+        else:
+            self.PreviousImage(event)
+        
+    def NextImage(self, event):
+        if self.hasImage == False:
+            return
+        self.imgIdx = self.imgIdx + 1 if self.imgIdx + 1 <= len(self.combo) else 1
+        self.SetImage(self.combo[self.imgIdx-1])
+        self.UpdateVisRefLabel()
+    
+    def PreviousImage(self, event):
+        if self.hasImage == False:
+            return
+        self.imgIdx = self.imgIdx - 1 if self.imgIdx - 1 > 0 else len(self.combo)
+        self.SetImage(self.combo[self.imgIdx-1])
+        self.UpdateVisRefLabel()
+
+    def ClearImage(self):
+        self.hasImage = False
+        self.canvas.configure(image='')
+        self.lbl.config(text=f"Visual Reference")
+
+    def UpdateVisRefLabel(self):      
+        self.lbl.config(text=f"Visual Reference - {self.imgIdx}/{len(self.combo)} - {self.xlabel}/{self.ylabel}")
+
+    def _getSize(self, fw, fh, iw, ih):
+        if fw >= iw and fh >= ih:
+            return iw, ih
+        
+        if fw >= iw and fh < ih:
+            return int(iw * fh/ih), fh
+        
+        if fw < iw and fh >= ih:
+            return fw, int(ih*fw/iw)
+        
+        if fw < iw and fh < ih:
+            dw = fw/iw
+            dh = fh/ih
+            
+            w = iw * dw if dw < dh else iw * dh
+            h = ih * dw if dw < dh else ih * dh
+            
+            return int(w), int(h)
+            
+    def SetImage(self, combo):
+        xLabel = combo[0]
+        yLabel = combo[1]
+        fImg, flipped = self.gridPreview(self.selection, xLabel, yLabel)
+
+        self.imgOrig = fImg
+        
+        w, h = self._getSize(self.canvas.winfo_width(), self.canvas.winfo_height(), self.imgOrig.width, self.imgOrig.height)
+        # self.img = ImageTk.PhotoImage(self.imgOrig.resize((w, h)))
+        self.img = ImageTk.PhotoImage(self.imgOrig)
+        
+        self.canvas.configure(image=self.img)
+        self.hasImage = True
+        if flipped:
+            self.xlabel = yLabel
+            self.ylabel = xLabel
+        else:
+            self.xlabel = xLabel
+            self.ylabel = yLabel
+        self.UpdateVisRefLabel()
+
+    def previewFromSelection(self, selection:dict, combo):
+        
+        self.images = []
+        self.combo = combo
+        self.selection = selection
+        
+        self.imgIdx = 1
+        if len(self.combo) > 0:
+            self.SetImage(self.combo[0])
+            self.UpdateVisRefLabel()
+        else:
+            self.ClearImage()
+
+
+    def gridPreview(self, selection:dict, cat1='', cat2=''):
+        sel = selection.copy()
+        flipped = False
+        cat1Keys = []
+        cat2Keys = []
+        for c in self.catList :
+            if c.getName() in [cat1]:
+                cat1Keys += list(c.returnSelf()[1].keys())
+            if c.getName() in [cat2]:
+                cat2Keys += list(c.returnSelf()[1].keys())
+        
+        xy = []
+        xyImg = []
+        wMax = 0
+        hMax = 0
+        for c1 in cat1Keys:
+            sel.pop(cat1, None)
+            sel.pop(cat2, None)
+            sel[cat1] = c1
+            x = []
+            xImg = []
+            for c2 in cat2Keys:
+                sel[cat2] = c2
+                cfl = self.commonFiles(sel)
+                cf = cfl[0] if cfl else []
+                if cf:
+                    img = Image.open(self.path + '\_previews\\' + cf[1])
+                    wMax = max(wMax, img.width)
+                    hMax = max(hMax, img.height)
+                    x.append(cf)
+                    xImg.append(img)
+                else:
+                    img = Image.new('RGB', (wMax, hMax), color=(0,0,0))
+                    x.append((0,'',dict()))
+                    xImg.append(img)
+            xy.append(x)
+            xyImg.append(xImg)
+
+        w, h = wMax, hMax
+        imgSize = (len(xy)* w, len(xy[0]) * h)
+        if len(xy[0]) * h > len(xy) * h:
+            flipped = True
+            # Transpose Matrices
+            xy = [list(x) for x in zip(*xy)]
+            xyImg = [list(x) for x in zip(*xyImg)]
+            tmp = cat1Keys
+            cat1Keys = cat2Keys
+            cat2Keys = tmp
+            
+        imgSize = (len(xy)* w, len(xy[0]) * h)
+
+
+        textsize = 15
+        textsize_s = 10
+        padding = (textsize+5,textsize+5)
+        
+        wf, hf = self._getSize(self.canvas.winfo_width() - padding[0], self.canvas.winfo_height() - padding[1],imgSize[0], imgSize[1])
+        ws = wf/imgSize[0]
+        hs = hf/imgSize[1]
+        scale = (ws, hs)
+        imgSize = (wf, hf)
+        w = math.floor(w * scale[0])
+        h = math.floor(h * scale[1])
+
+        gridSize =  tuple(map(lambda i, j: i + j, imgSize, padding))
+        grid = Image.new('RGBA', gridSize, color=(0,0,0,0))
+
+        fnt = ImageFont.truetype("arial.ttf", textsize)
+        fnt_s = ImageFont.truetype("arial.ttf", int(textsize_s))
+        for ix, x in enumerate(xy):
+            for iy, y in enumerate(x):
+                img = xyImg[ix][iy]
+                size = (math.floor(img.width*ws), math.floor(img.height*hs))
+                img = img.resize(size)
+                if y[0] > 0:
+                    imgExclBase = Image.new('RGBA', (textsize_s*2,textsize_s*2), color=(255,255,255,0))
+                    imgExcl = ImageDraw.Draw(imgExclBase)
+                    imgExcl.polygon([(0,0),(0,textsize_s*2),(textsize_s*2,0)],fill=(255,255,255,150))
+                    imgExcl.text((0, 0), f'+{y[0]}', 'red', fnt_s)
+                    img.paste(imgExclBase, (0,0), imgExclBase)
+                grid.paste(img, box=(padding[0] + ix*w, padding[1] + iy*h))
+
+        d = ImageDraw.Draw(grid)
+        for ix, x in enumerate(cat1Keys):
+            d.text((padding[0] + ix * w, 0),x, 'black', fnt)
+
+        for iy, y in enumerate(cat2Keys):
+            txt=Image.new('RGBA', (h,padding[1]),color=(0,0,0,0))
+            dtxt = ImageDraw.Draw(txt)
+            dtxt.text( (0, 0), y, 'black', fnt)
+            dtxt=txt.rotate(90,  expand=1)
+            grid.paste(dtxt, box=(0, padding[1] + iy * h))
+
+        return grid, flipped
 
 class Set:
     dirty = False
+    gridView = False
     def __init__(self, root, name):    
         self.path = name
         self.filename = self.path + '\config.yaml'
         self.Previewfilename = self.path + '\previews.yaml'
-        frame = ttk.Frame(root)
-        root.add(frame, text=self.path)
+        self.frame = ttk.Frame(root)
+        root.add(self.frame, text=self.path)
         DeleteRefToMissingImages(self.path)
         with open(self.filename) as f:
             struct = yaml.load(f, Loader=SafeLoader)
@@ -679,9 +892,9 @@ class Set:
         for idx, cat in enumerate(struct):
             if cat == "_settings":
                 continue
-            c = CategoryList(frame, struct, cat, self.listboxSelectionChanged)
+            c = CategoryList(self.frame, struct, cat, self.listboxSelectionChanged)
             c.grid(column=0, row=idx, sticky=(N,W,E,S))
-            frame.grid_rowconfigure(idx,weight=c.getPromptCount())
+            self.frame.grid_rowconfigure(idx,weight=c.getPromptCount())
             self.catList.append(c)
             
         if "_settings" not in struct:
@@ -689,37 +902,62 @@ class Set:
             with open(self.filename, 'w') as f:
                 yaml.dump(struct, f, sort_keys=False)
 
-        cs = SettingsList(frame, struct, "_settings", self.listboxSelectionChanged)
+        cs = SettingsList(self.frame, struct, "_settings", self.listboxSelectionChanged)
         idx = len(struct)
         cs.grid(column=0, row=idx,sticky=(N,W,E,S))
-        frame.grid_rowconfigure(idx,weight=cs.getPromptCount())
+        self.frame.grid_rowconfigure(idx,weight=cs.getPromptCount())
         self.catList.append(cs)
         
-        ppFrame = ttk.Frame(frame)
-        ppFrame.grid(column=2, row = 0, rowspan=idx+1, sticky=(N,W,E,S))
+        ppFrame = ttk.Frame(self.frame)
+        ppFrame.grid(column=2, row = 0, rowspan=idx+2, sticky=(N,W,E,S))
         self.pPreview = PromptPreview(ppFrame, self.copyWithPreviewPara)
         self.pPreview.grid(column=0, row=0, sticky=(N,W,E,S))
-        
+       
         self.iPreview = ImagePreview(ppFrame, self.cb_imageDeleted, self.cb_imageSelectPrompts)
-        self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+        self.gPreview = GridPreview(ppFrame, self.catList, self.path, self.getPreviewFilesFromSelection)
+
+        if not self.gridView:
+            self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+        else:
+            self.gPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+
+
         ppFrame.grid_columnconfigure(0, weight=1)
-        # ppFrame.grid_rowconfigure(0, weight=1)
         ppFrame.grid_rowconfigure(1, weight=1)
                 
-        ttk.Separator(frame, orient=VERTICAL).grid(column=1, row=0, rowspan=len(struct), sticky=(N,W,E,S))
+        ttk.Separator(self.frame, orient=VERTICAL).grid(column=1, row=0, rowspan=len(struct)+2, sticky=(N,W,E,S))
         
-        self.saveBtn = ttk.Button(frame, text='Save', command=self.cb_save)
+        btnFrame = ttk.Frame(self.frame)
+        btnFrame.grid(column=0, row=idx+1)
+
+        self.saveBtn = ttk.Button(btnFrame, text='Save', command=self.cb_save)
         self.saveBtn.config(state=DISABLED)
         # self.saveBtn.grid(column=0)
         
-        self.resetBtn = ttk.Button(frame, text='Reset Selection', command=self.cb_reset)
-        self.resetBtn.grid(column=0)
+        self.resetBtn = ttk.Button(btnFrame, text='Reset Selection', command=self.cb_reset)
+        self.resetBtn.grid(column=0, row=0)
+
+        self.gridBtn = ttk.Button(btnFrame, text='Toggle Grid View', command=self.cb_toggleGridView)
+        self.gridBtn.grid(column=1, row=0)
         
         # frame.grid_columnconfigure(0, weight=1)
-        frame.grid_columnconfigure(2, weight=1)  
+        self.frame.grid_columnconfigure(2, weight=1)  
         
         SyncPreviewList(struct, self.path)
-        
+
+    def cb_toggleGridView(self):
+        if self.gridView:
+            self.gridView = False
+            self.gPreview.grid_remove()
+            self.iPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+        else:
+            self.gridView = True
+            self.iPreview.grid_remove()
+            self.gPreview.grid(column=0, row=1, sticky=(N,W,E,S))
+
+        self.frame.update()
+        self.listboxSelectionChanged()
+
     def copyWithPreviewPara(self, prompt):
         para = self.iPreview.GetParameters()
         clip = prompt + para
@@ -816,24 +1054,42 @@ class Set:
                 mark = True
         
         self.pPreview.markNegPrompt()
+
+        if self.gridView:
+            notSetCat = []
+            for c in self.catList:
+                if c.isUnspecified():
+                    notSetCat.append(c.getName())
+            gridCombo = list(itertools.combinations(notSetCat, 2))
+            self.gPreview.previewFromSelection(selDict, gridCombo)
+        else:
+            self.previewFromSelection(selDict)
         
+
+    def previewFromSelection(self, selection):
         # Get Preview Files
-        commonFiles = PreviewFiles(selDict, self.path)
-        
-        # Sorty by Exclusivity
-        commonFilesExcl, addStyles = PreviewExlusivity(selDict, self.path, commonFiles)
-        
-        # commonFiles = [x for _,x in sorted(zip(commonFilesExcl,commonFiles))]
-        commonFiles = sorted(zip(commonFilesExcl,commonFiles,addStyles))
+        commonFiles = self.getPreviewFilesFromSelection(selection)
         
         # print(f'Found {len(commonFiles)} Files with exclusivities: {[x[0] for x in commonFiles]}')
         if len(commonFiles) > 0:
             self.iPreview.SetImageSet(self.path + '\_previews\\', commonFiles)
         else:
             self.iPreview.ClearImage()
-            
-             
+    
+    
+    def getPreviewFilesFromSelection(self, selection):
+        # Get Preview Files
+        commonFiles = PreviewFiles(selection, self.path)
         
+        # Sorty by Exclusivity
+        commonFilesExcl, addStyles = PreviewExlusivity(selection, self.path, commonFiles)
+        
+        # commonFiles = [x for _,x in sorted(zip(commonFilesExcl,commonFiles))]
+        commonFiles = sorted(zip(commonFilesExcl,commonFiles,addStyles))
+
+        return commonFiles
+
+
     def createPreviewList(self, missing):
         allData = {}
         for idx, cat in enumerate(self.catList):
