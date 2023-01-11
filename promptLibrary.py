@@ -468,10 +468,11 @@ class ImagePreview:
         self.lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
         self.lbl.grid(row=0,sticky=(N,S,E,W),columnspan=3)
         
-        self.canvas.bind("<Button-1>", self.NextImage)
+        # self.canvas.bind("<Button-1>", self.NextImage)
+        self.canvas.bind("<Button-1>", self.cb_showImage)
         self.canvas.bind("<Button-4>", self.NextImage)
-        self.canvas.bind("<Button-2>", self.PreviousImage)
-        self.canvas.bind("<Button-3>", self.PreviousImage)
+        # self.canvas.bind("<Button-2>", self.PreviousImage)
+        # self.canvas.bind("<Button-3>", self.PreviousImage)
         self.canvas.bind("<Button-5>", self.PreviousImage)
         self.canvas.bind("<MouseWheel>", self.ScrollImage)
 
@@ -506,8 +507,13 @@ class ImagePreview:
         self.noCpy.set(False)
         
            
-                
+      
+    def cb_showImage(self,event):
+        self.ShowFullSizeImage()          
         
+    def ShowFullSizeImage(self):
+        self.imgOrig.show()
+
     def _getSize(self, fw, fh, iw, ih):
         if fw >= iw and fh >= ih:
             return iw, ih
@@ -683,10 +689,11 @@ class GridPreview:
         self.lbl = ttk.Label(self.frame, text="Visual Reference", font=f)
         self.lbl.grid(row=0,sticky=(N,S,E,W),columnspan=3)
         
-        self.canvas.bind("<Button-1>", self.NextImage)
+        # self.canvas.bind("<Button-1>", self.NextImage)
+        self.canvas.bind("<Button-1>", self.cb_showImage)
         self.canvas.bind("<Button-4>", self.NextImage)
-        self.canvas.bind("<Button-2>", self.PreviousImage)
-        self.canvas.bind("<Button-3>", self.PreviousImage)
+        # self.canvas.bind("<Button-2>", self.PreviousImage)
+        # self.canvas.bind("<Button-3>", self.PreviousImage)
         self.canvas.bind("<Button-5>", self.PreviousImage)
         self.canvas.bind("<MouseWheel>", self.ScrollImage)
 
@@ -705,6 +712,9 @@ class GridPreview:
             self.NextImage(event)
         else:
             self.PreviousImage(event)
+    
+    def cb_showImage(self,event):
+        self.ShowFullSizeImage(self.xlabel, self.ylabel)
         
     def NextImage(self, event):
         if self.hasImage == False:
@@ -758,6 +768,7 @@ class GridPreview:
         # self.img = ImageTk.PhotoImage(self.imgOrig.resize((w, h)))
         self.img = ImageTk.PhotoImage(self.imgOrig)
         
+        
         self.canvas.configure(image=self.img)
         self.hasImage = True
         if flipped:
@@ -767,6 +778,10 @@ class GridPreview:
             self.xlabel = xLabel
             self.ylabel = yLabel
         self.UpdateVisRefLabel()
+
+    def ShowFullSizeImage(self, xLabel, yLabel):
+        fSizeImg,_ = self.gridPreview(self.selection, xLabel, yLabel, True)
+        fSizeImg.show()
 
     def previewFromSelection(self, selection:dict, combo):
         
@@ -782,7 +797,7 @@ class GridPreview:
             self.ClearImage()
 
 
-    def gridPreview(self, selection:dict, cat1='', cat2=''):
+    def gridPreview(self, selection:dict, cat1='', cat2='', fullsize = False):
         sel = selection.copy()
         flipped = False
         cat1Keys = []
@@ -825,6 +840,12 @@ class GridPreview:
         padding = (textsize+5,textsize+5)
         fnt = ImageFont.truetype("arial.ttf", textsize)
         fnt_s = ImageFont.truetype("arial.ttf", int(textsize_s))
+
+        if fullsize:
+            bgColor = (255, 255, 255, 255)
+        else:
+            bgColor = (0, 0, 0, 0)
+
         w, h = wMax, hMax
         if w == 0 or h == 0:
             imgSize = (self.canvas.winfo_width(), self.canvas.winfo_height())
@@ -848,23 +869,24 @@ class GridPreview:
         imgSize = (len(xy)* w, len(xy[0]) * h)
 
 
-        
-        wf, hf = self._getSize(self.canvas.winfo_width() - padding[0], self.canvas.winfo_height() - padding[1],imgSize[0], imgSize[1])
-        ws = wf/imgSize[0]
-        hs = hf/imgSize[1]
-        scale = (ws, hs)
-        imgSize = (wf, hf)
-        w = math.floor(w * scale[0])
-        h = math.floor(h * scale[1])
+        if not fullsize:
+            wf, hf = self._getSize(self.canvas.winfo_width() - padding[0], self.canvas.winfo_height() - padding[1],imgSize[0], imgSize[1])
+            ws = wf/imgSize[0]
+            hs = hf/imgSize[1]
+            scale = (ws, hs)
+            imgSize = (wf, hf)
+            w = math.floor(w * scale[0])
+            h = math.floor(h * scale[1])
 
         gridSize =  tuple(map(lambda i, j: i + j, imgSize, padding))
-        grid = Image.new('RGBA', gridSize, color=(0,0,0,0))
+        grid = Image.new('RGBA', gridSize, color=bgColor)
 
         for ix, x in enumerate(xy):
             for iy, y in enumerate(x):
                 img = xyImg[ix][iy]
-                size = (math.floor(img.width*ws), math.floor(img.height*hs))
-                img = img.resize(size)
+                if not fullsize:
+                    size = (math.floor(img.width*ws), math.floor(img.height*hs))
+                    img = img.resize(size)
                 if y[0] > 0:
                     imgExclBase = Image.new('RGBA', (textsize_s*2,textsize_s*2), color=(255,255,255,0))
                     imgExcl = ImageDraw.Draw(imgExclBase)
@@ -878,7 +900,7 @@ class GridPreview:
             d.text((padding[0] + ix * w, 0),x, 'black', fnt)
 
         for iy, y in enumerate(cat2Keys):
-            txt=Image.new('RGBA', (h,padding[1]),color=(0,0,0,0))
+            txt=Image.new('RGBA', (h,padding[1]),color=bgColor)
             dtxt = ImageDraw.Draw(txt)
             dtxt.text( (0, 0), y, 'black', fnt)
             dtxt=txt.rotate(90,  expand=1)
