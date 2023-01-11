@@ -812,13 +812,27 @@ class GridPreview:
                     x.append(cf)
                     xImg.append(img)
                 else:
-                    img = Image.new('RGB', (wMax, hMax), color=(0,0,0))
+                    img = Image.new('RGBA', (wMax, hMax), color=(0,0,0,0))
                     x.append((0,'',dict()))
                     xImg.append(img)
             xy.append(x)
             xyImg.append(xImg)
 
+        textsize = 12
+        textsize_s = 10
+        padding = (textsize+5,textsize+5)
+        fnt = ImageFont.truetype("arial.ttf", textsize)
+        fnt_s = ImageFont.truetype("arial.ttf", int(textsize_s))
         w, h = wMax, hMax
+        if w == 0 or h == 0:
+            imgSize = (self.canvas.winfo_width(), self.canvas.winfo_height())
+            grid = Image.new('RGBA',imgSize, color=(0,0,0,0))
+            d = ImageDraw.Draw(grid)
+            txt = 'No Images Found!'
+            d.text((10,10), txt, 'red', fnt)
+            return grid, False
+
+
         imgSize = (len(xy)* w, len(xy[0]) * h)
         if len(xy[0]) * h > len(xy) * h:
             flipped = True
@@ -832,9 +846,6 @@ class GridPreview:
         imgSize = (len(xy)* w, len(xy[0]) * h)
 
 
-        textsize = 15
-        textsize_s = 10
-        padding = (textsize+5,textsize+5)
         
         wf, hf = self._getSize(self.canvas.winfo_width() - padding[0], self.canvas.winfo_height() - padding[1],imgSize[0], imgSize[1])
         ws = wf/imgSize[0]
@@ -847,8 +858,6 @@ class GridPreview:
         gridSize =  tuple(map(lambda i, j: i + j, imgSize, padding))
         grid = Image.new('RGBA', gridSize, color=(0,0,0,0))
 
-        fnt = ImageFont.truetype("arial.ttf", textsize)
-        fnt_s = ImageFont.truetype("arial.ttf", int(textsize_s))
         for ix, x in enumerate(xy):
             for iy, y in enumerate(x):
                 img = xyImg[ix][iy]
