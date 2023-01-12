@@ -17,6 +17,7 @@ import math
 from tkinter import *
 from tkinter import font, messagebox, ttk
 from tkinter.simpledialog import askstring
+import threading
 
 import yaml
 from PIL import Image, ImageTk, ImageFont, ImageDraw, ImageOps
@@ -676,6 +677,7 @@ class ImagePreview:
     
 class GridPreview:
     imgIdx = 0
+    gridImageThread = threading.Thread()
     def __init__(self, root, catList, path, cb_commonFiles):
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
         self.canvas = Label(self.frame, anchor=CENTER, borderwidth=0)
@@ -714,10 +716,11 @@ class GridPreview:
             self.PreviousImage(event)
     
     def cb_showImage(self,event):
-        self.frame.config(cursor="wait")
-        self.frame.update()
-        self.ShowFullSizeImage(self.xlabel, self.ylabel)
-        self.frame.config(cursor="")
+        if self.gridImageThread.is_alive():
+            return
+
+        self.gridImageThread = threading.Thread(target=self.ShowFullSizeImage, args=(self.xlabel, self.ylabel))
+        self.gridImageThread.start()
         
     def NextImage(self, event):
         if self.hasImage == False:
