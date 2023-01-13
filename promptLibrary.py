@@ -924,7 +924,6 @@ class Set:
     def __init__(self, root, name):    
         self.path = name
         self.filename = self.path + '\config.yaml'
-        self.Previewfilename = self.path + '\previews.yaml'
         self.frame = ttk.Frame(root)
         root.add(self.frame, text=self.path)
         DeleteRefToMissingImages(self.path)

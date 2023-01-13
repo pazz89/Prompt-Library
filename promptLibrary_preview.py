@@ -7,13 +7,14 @@ Created on Fri Dec 23 14:44:14 2022
 import itertools
 import yaml
 from yaml.loader import SafeLoader
+import json
 
 import os
 import os.path
 
 import functools
 import time
-
+from pathlib import Path
 from collections import namedtuple
  
 Generation = namedtuple('Generation', ['Settings', 'Prompts'])
@@ -36,7 +37,7 @@ def timer(func):
 
 @timer
 def SyncPreviewList(promptData, path):
-    filename = path + '\previews.yaml'
+    filename = path + '\previews.json'
     try:       
         SetCachedPerviewFileDirty(path)
         previewData = GetCachedPreviewFile(path) 
@@ -84,7 +85,7 @@ def SyncPreviewList(promptData, path):
     VerifyPreviewListing(unlistedPreviewCandidates, previewData, path)     
                
     with open(filename, 'w') as f:
-        yaml.dump(previewData, f, sort_keys=False)    
+        json.dump(previewData, f, sort_keys=False)    
         
     DeleteRefToMissingImages(path)
     
@@ -92,11 +93,11 @@ def SyncPreviewList(promptData, path):
 
 @timer        
 def DeleteRefToMissingImages(path):
-    filename = path + '\previews.yaml'
+    filename = path + '\previews.json'
     picsPath = path + '\_previews\\'
     try:
         with open(filename) as f:
-            previewData = yaml.load(f, Loader=SafeLoader)
+            previewData = json.load(f)
             for cat in previewData:
                 for prompt in previewData[cat]:
                     for f in list(previewData[cat][prompt]["Files"]):
@@ -106,7 +107,7 @@ def DeleteRefToMissingImages(path):
             
          
         with open(filename, 'w') as f:
-            yaml.dump(previewData, f, sort_keys=False)      
+            json.dump(previewData, f, sort_keys=False)      
                          
     except:
         pass
@@ -126,9 +127,17 @@ def GetCachedPreviewFile(path, load=False):
             
     if loadToCache:
         print("load preview file to cache")
-        filename = path + '\previews.yaml'
+        filename = path + '\previews.json'
+        if not Path(filename).exists():
+            fyaml = Path(path) / 'previews.yaml'
+            if fyaml.exists():
+                with open(fyaml) as f:
+                    data = yaml.load(f, Loader=SafeLoader)
+                    with open(filename ,'w') as f2:
+                        json.dump(data, f2, sort_keys=False)
+
         with open(filename) as f:
-            previewFileCache[path] = yaml.load(f, Loader=SafeLoader)  
+            previewFileCache[path] = json.load(f)  
         previewFileCacheDirty[path] = False
             
     return previewFileCache[path]

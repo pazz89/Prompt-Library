@@ -10,6 +10,8 @@ import json
 import yaml
 from yaml.loader import SafeLoader
 
+import json
+
 import modules.scripts as scripts
 import gradio as gr
 
@@ -193,13 +195,13 @@ class Script(scripts.Script):
                 startSeed = int(sed)
 
         promptList = libraryPath + "\promptList.txt"
-        previewFile = libraryPath + "\previews.yaml"
+        previewFile = libraryPath + "\previews.json"
         previewPath = libraryPath + "\_previews"
         
         assert os.path.isfile(promptList), f'missing list for preview generation'
         assert os.path.isfile(previewFile), f'missing preview file'
         with open(previewFile, 'r') as f:
-            previewData = yaml.load(f, Loader=SafeLoader)
+            previewData = json.load(f)
         
         if save_to_webui:
             p.do_not_save_samples = False
@@ -220,9 +222,10 @@ class Script(scripts.Script):
 
         settings = []
         for s in data:
-            para = parse_generation_parameters(s.Settings["Setting"]+ ", Dummy1: well, Dummy2: lol")
-            para["_settingName"] = s.Settings["SettingName"]
-            settings.append(para)
+            if s.Settings:
+                para = parse_generation_parameters(s.Settings["Setting"]+ ", Dummy1: well, Dummy2: lol")
+                para["_settingName"] = s.Settings["SettingName"]
+                settings.append(para)
         checkSettings(settings)
 
         job_count = 0
@@ -329,7 +332,7 @@ class Script(scripts.Script):
                                         previewData[ct][prmpt]['Files'].append(relFName)
                                 
                                 with open(previewFile, 'w') as f:
-                                    yaml.dump(previewData, f, sort_keys=False)       
+                                    json.dump(previewData, f, sort_keys=False)       
                                 
                         else:
                             break;
