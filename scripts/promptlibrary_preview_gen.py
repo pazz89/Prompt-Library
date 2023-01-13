@@ -25,6 +25,7 @@ import modules.shared as shared
 import modules.sd_samplers
 import modules.sd_models
 
+from modules.processing import StableDiffusionProcessing
 from collections import namedtuple
 
 Generation = namedtuple('Generation', ['Settings', 'Prompts'])
@@ -140,7 +141,7 @@ class Script(scripts.Script):
 
         return [checkbox_same_seed, save_to_webui, libraryPath]
 
-    def run(self, p, checkbox_same_seed, save_to_webui, libraryPath: str):  
+    def run(self, p:StableDiffusionProcessing, checkbox_same_seed, save_to_webui, libraryPath: str):  
         startSeed = 0
         def checkSettings(settings):
             for s in settings:
@@ -193,6 +194,11 @@ class Script(scripts.Script):
                 sed = setting["Seed"]
                 nonlocal startSeed
                 startSeed = int(sed)
+
+            if "Size-1" in setting:
+                p.width = int(setting["Size-1"])
+            if "Size-2" in setting:
+                p.height = int(setting["Size-2"])
 
         promptList = libraryPath + "\promptList.txt"
         previewFile = libraryPath + "\previews.json"
