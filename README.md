@@ -13,6 +13,10 @@ The two buttons on the right of each category allows to add or delete prompts. D
 There is a Menubar with the options to add or edit a new set of prompt categories:
 The first field allows you to set the name of the set. Then follows an ordered list of the categories. With the next two fields a new category can be created using the insert button. An existing category can be update with a new name or a new index with the update button. To do so, select the category you want to edit (or doubleclick to preload to edit fields) and change name and/or index. The remove button removes a category. Changes are discarded if you exit via the window close button ([x]). Save overwrites the set in editing mode or creates a new directory in new mode. If the name of a category is changed, all previews connected to this category will be moved to the '_archive' folder.
 
+The Button "Toggle Grid View" allows to switch between Grid comparison of categories and single image view
+
+The last category "Setting" is automatically added to every category and allows to define generation settings (Model, CFG Scale, Sampler, Steps, Seed, Size)
+
 ![Alt text](doc/PromptLibraryInterface_EditSet.png "Interface of Prompt-Library Edit Window")
 
 ### Generating Previews
