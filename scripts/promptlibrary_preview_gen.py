@@ -172,7 +172,6 @@ class Script(scripts.Script):
                 if info is None:
                     raise RuntimeError(f"Unknown checkpoint: {ckp}. Make sure you use model name without folder prefix")
                 modules.sd_models.reload_model_weights(shared.sd_model, info)
-                p.sd_model = shared.sd_model
             
             if "Sampler" in setting:
                 smpl = setting["Sampler"]
