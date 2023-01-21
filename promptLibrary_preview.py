@@ -190,7 +190,10 @@ def VerifyPreviewListing(unlistedPreviewCandidates, previewData, path):
         pass
        
     for img in unlistedPreviewCandidates:
-        os.replace('{}\{}'.format(picsPath, img), '{}\{}'.format(archivePath, img.replace('\\','_')))
+        try:
+            os.replace('{}\{}'.format(picsPath, img), '{}\{}'.format(archivePath, img.replace('\\','_')))
+        except:
+            pass
         
 @timer        
 def PreviewFiles(promptData, path):        
