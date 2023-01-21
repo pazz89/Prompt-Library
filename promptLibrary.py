@@ -18,6 +18,7 @@ from tkinter import *
 from tkinter import font, messagebox, ttk
 from tkinter.simpledialog import askstring
 import threading
+from collections import Counter
 
 import yaml
 from PIL import Image, ImageTk, ImageFont, ImageDraw, ImageOps
@@ -677,6 +678,8 @@ class ImagePreview:
     
 class GridPreview:
     imgIdx = 0
+    subImgIdx = 0
+    subImgCnt = 0
     gridImageThread = threading.Thread()
     def __init__(self, root, catList, path, cb_commonFiles):
         self.frame = ttk.Frame(root, padding=(5, 5, 5, 5))
@@ -699,6 +702,10 @@ class GridPreview:
         self.canvas.bind("<Button-5>", self.PreviousImage)
         self.canvas.bind("<MouseWheel>", self.ScrollImage)
 
+        self.canvas.bind('<Control-Button-4>', self.PreviousSubImage)
+        self.canvas.bind('<Control-Button-5>', self.NextSubImage)
+        self.canvas.bind("<Control-MouseWheel>", self.ScrollSubImage)
+
         self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
         self.hasImage = False              
@@ -714,6 +721,12 @@ class GridPreview:
             self.NextImage(event)
         else:
             self.PreviousImage(event)
+
+    def ScrollSubImage(self, event):
+        if event.delta < 0:
+            self.NextSubImage(event)
+        else:
+            self.PreviousSubImage(event)
     
     def cb_showImage(self,event):
         if self.gridImageThread.is_alive():
@@ -725,15 +738,29 @@ class GridPreview:
     def NextImage(self, event):
         if self.hasImage == False:
             return
-        self.imgIdx = self.imgIdx + 1 if self.imgIdx + 1 <= len(self.combo) else 1
-        self.SetImage(self.combo[self.imgIdx-1])
+        self.imgIdx = self.imgIdx + 1 if self.imgIdx + 1 <= len(self.comboList) else 1
+        self.SetImage(self.comboList[self.imgIdx-1])
         self.UpdateVisRefLabel()
     
     def PreviousImage(self, event):
         if self.hasImage == False:
             return
-        self.imgIdx = self.imgIdx - 1 if self.imgIdx - 1 > 0 else len(self.combo)
-        self.SetImage(self.combo[self.imgIdx-1])
+        self.imgIdx = self.imgIdx - 1 if self.imgIdx - 1 > 0 else len(self.comboList)
+        self.SetImage(self.comboList[self.imgIdx-1])
+        self.UpdateVisRefLabel()
+
+    def NextSubImage(self, event):
+        if self.hasImage == False:
+            return
+        self.subImgIdx = self.subImgIdx + 1 if self.subImgIdx + 1 <= self.subImgCnt else 1
+        self.SetImage(self.comboList[self.imgIdx-1], self.subImgIdx-1)
+        self.UpdateVisRefLabel()
+    
+    def PreviousSubImage(self, event):
+        if self.hasImage == False:
+            return
+        self.subImgIdx = self.subImgIdx - 1 if self.subImgIdx - 1 > 0 else self.subImgCnt
+        self.SetImage(self.comboList[self.imgIdx-1], self.subImgIdx-1)
         self.UpdateVisRefLabel()
 
     def ClearImage(self):
@@ -741,8 +768,11 @@ class GridPreview:
         self.canvas.configure(image='')
         self.lbl.config(text=f"Visual Reference")
 
-    def UpdateVisRefLabel(self):      
-        self.lbl.config(text=f"Visual Reference - {self.imgIdx}/{len(self.combo)} - {self.xlabel}/{self.ylabel}")
+    def UpdateVisRefLabel(self):
+        title = f"Visual Reference - {self.imgIdx}/{len(self.comboList)} - {self.xlabel}/{self.ylabel}"
+        if self.subImgCnt > 1:
+            title += f" - Variation {self.subImgIdx}/{self.subImgCnt}"
+        self.lbl.config(text=title)
 
     def _getSize(self, fw, fh, iw, ih):
         if fw >= iw and fh >= ih:
@@ -763,11 +793,11 @@ class GridPreview:
             
             return int(w), int(h)
             
-    def SetImage(self, combo):
+    def SetImage(self, combo, idx=0):
         xLabel = combo[0]
         yLabel = combo[1]
-        fImg, flipped = self.gridPreview(self.selection, xLabel, yLabel)
-
+        fImg, flipped, gridCount = self.gridPreview(self.selection, xLabel, yLabel, cfIdx=idx)
+        self.subImgCnt = gridCount if gridCount > 1 else 1
         self.imgOrig = fImg
         
         w, h = self._getSize(self.canvas.winfo_width(), self.canvas.winfo_height(), self.imgOrig.width, self.imgOrig.height)
@@ -786,24 +816,25 @@ class GridPreview:
         self.UpdateVisRefLabel()
 
     def ShowFullSizeImage(self, xLabel, yLabel):
-        fSizeImg,_ = self.gridPreview(self.selection, xLabel, yLabel, True)
+        fSizeImg,*_ = self.gridPreview(self.selection, xLabel, yLabel, True, cfIdx=self.subImgIdx-1)
         fSizeImg.show()
 
     def previewFromSelection(self, selection:dict, combo):
-        
         self.images = []
-        self.combo = combo
+        self.comboList = combo
         self.selection = selection
         
         self.imgIdx = 1
-        if len(self.combo) > 0:
-            self.SetImage(self.combo[0])
+        self.subImgIdx = 1
+        self.subImgCnt = 0
+        if len(self.comboList) > 0:
+            self.SetImage(self.comboList[0])
             self.UpdateVisRefLabel()
         else:
             self.ClearImage()
 
 
-    def gridPreview(self, selection:dict, cat1='', cat2='', fullsize = False):
+    def gridPreview(self, selection:dict, cat1='', cat2='', fullsize = False, cfIdx = 0):
         sel = selection.copy()
         flipped = False
         cat1Keys = []
@@ -818,6 +849,7 @@ class GridPreview:
         xyImg = []
         wMax = 0
         hMax = 0
+        commonFilesCount = 9999
         for c1 in cat1Keys:
             sel.pop(cat1, None)
             sel.pop(cat2, None)
@@ -827,8 +859,16 @@ class GridPreview:
             for c2 in cat2Keys:
                 sel[cat2] = c2
                 cfl = self.commonFiles(sel)
-                cf = cfl[0] if cfl else []
+                cf = cfl[cfIdx] if cfl else []
                 if cf:
+                    exCnt = Counter(e[0] for e in cfl)
+                    if 0 in exCnt:
+                        cf0Cnt = exCnt[0]
+                        if cf0Cnt < commonFilesCount:
+                            commonFilesCount = cf0Cnt
+                    else:
+                        commonFilesCount = 0
+
                     img = Image.open(self.path + '\_previews\\' + cf[1])
                     wMax = max(wMax, img.width)
                     hMax = max(hMax, img.height)
@@ -862,7 +902,7 @@ class GridPreview:
             d = ImageDraw.Draw(grid)
             txt = 'No Images Found!'
             d.text((10,10), txt, 'red', fnt)
-            return grid, False
+            return grid, False, 0
 
 
         imgSize = (len(xy)* w, len(xy[0]) * h)
@@ -915,7 +955,7 @@ class GridPreview:
             dtxt=txt.rotate(90,  expand=1)
             grid.paste(dtxt, box=(0, padding[1] + iy * h))
 
-        return grid, flipped
+        return grid, flipped, commonFilesCount
 
 class Set:
     dirty = False
