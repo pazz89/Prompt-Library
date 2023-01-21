@@ -18,7 +18,7 @@ import gradio as gr
 from modules import sd_samplers
 from modules import images
 from modules.processing import Processed, process_images
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from modules.shared import opts, cmd_opts, state
 from modules.generation_parameters_copypaste import parse_generation_parameters
 import modules.shared as shared
@@ -133,15 +133,17 @@ class Script(scripts.Script):
         return "Generate Previews for the Prompt Library"
 
     def ui(self, is_img2img):
-        checkbox_same_seed = gr.Checkbox(label="Use same seed for all previews", value=False)
+        checkbox_same_seed = gr.Checkbox(label="Use same seed for all previews", value=True)
+        checkbox_ignore_seed = gr.Checkbox(label="Ignore seed from file", value=False)
+        checkbox_ignore_allButCKPT = gr.Checkbox(label="Ignore all settings from file except model", value=False)
         save_to_webui = gr.Checkbox(label="Save to web ui instead of prompt library", value=False)
 
         libraryPath = gr.Textbox(label="Prompt Library Directory",
                                  placeholder="Absolute Path to the Sub-Directory of the Prompt Library")
 
-        return [checkbox_same_seed, save_to_webui, libraryPath]
+        return [checkbox_same_seed, checkbox_ignore_seed, checkbox_ignore_allButCKPT, save_to_webui, libraryPath]
 
-    def run(self, p:StableDiffusionProcessing, checkbox_same_seed, save_to_webui, libraryPath: str):  
+    def run(self, p:StableDiffusionProcessing, checkbox_same_seed, checkbox_ignore_seed, checkbox_ignore_allButCKPT, save_to_webui, libraryPath: str):  
         startSeed = 0
         def checkSettings(settings):
             for s in settings:
@@ -163,7 +165,7 @@ class Script(scripts.Script):
                 return
 
             name = setting["_settingName"]
-            infotx = '\n' + f"Applying Setting {name}"
+            infotx = '\n\n' + f"Applying Setting {name}"
             print(infotx)
             print(''.ljust(len(infotx)-1, '-'))   
             if "Model" in setting:
@@ -173,6 +175,9 @@ class Script(scripts.Script):
                     raise RuntimeError(f"Unknown checkpoint: {ckp}. Make sure you use model name without folder prefix")
                 modules.sd_models.reload_model_weights(shared.sd_model, info)
             
+            if checkbox_ignore_allButCKPT:
+                return
+
             if "Sampler" in setting:
                 smpl = setting["Sampler"]
                 sampler_name = sd_samplers.samplers_map.get(smpl.lower(), None)
@@ -189,7 +194,7 @@ class Script(scripts.Script):
                 stp = setting["Steps"]
                 p.steps = int(stp)
 
-            if "Seed" in setting:
+            if "Seed" in setting and checkbox_ignore_seed == False:
                 sed = setting["Seed"]
                 nonlocal startSeed
                 startSeed = int(sed)
@@ -210,7 +215,7 @@ class Script(scripts.Script):
         
         if save_to_webui:
             p.do_not_save_samples = False
-            p.do_not_save_grid = False
+            p.do_not_save_grid = True
         else:
             p.do_not_save_samples = True
             p.do_not_save_grid = True
@@ -237,7 +242,7 @@ class Script(scripts.Script):
         totIteration = 0
         for job in data:
             job_count += len(job.Prompts)
-            totIteration += math.ceil(job_count / p.batch_size)
+            totIteration += math.ceil(len(job.Prompts) / p.batch_size)
 
         infotx = f"Will process {job_count} previews in {totIteration} jobs {p.n_iter} times, using {len(data)} settings. Total of {totIteration*p.n_iter} jobs"
         print('\n'+''.ljust(len(infotx), '-'))    
@@ -254,8 +259,8 @@ class Script(scripts.Script):
         all_prompts = []
         infotexts = []
         all_seeds = []
+        imgsSettingGrid = []
         
-        batch_count = math.ceil(job_count / p.batch_size)
         c_batch_size = p.batch_size
         
         startSeed = p.seed
@@ -266,6 +271,7 @@ class Script(scripts.Script):
                 for setIdx, generation in enumerate(data):
                     if state.interrupted or state.skipped:
                         break;
+                    idxStart = len(imgs)
                     jobs = generation.Prompts
                     setting = generation.Settings
                     if setting:
@@ -274,13 +280,12 @@ class Script(scripts.Script):
                         applySettings(para)
                     
                     p.batch_size = c_batch_size
-                    processedPrompts = 0
                     toProcessPrompts = len(jobs)
 
                     if checkbox_same_seed:
                         seedInit = startSeed + n
                     else:
-                        seedInit = startSeed + n * processedPrompts
+                        seedInit = startSeed + n * toProcessPrompts
                         
                     for i in range(0,toProcessPrompts,p.batch_size):
                         p.prompt = []
@@ -310,8 +315,6 @@ class Script(scripts.Script):
                         print(''.ljust(len(infotx)-1, '-'))   
                         proc = process_images(p)
                         state.job = f"{state.job_no} out of {state.job_count}" 
-
-                        processedPrompts += p.batch_size
                         
                         if len(proc.images) > 0 and state.interrupted == False and state.skipped == False:
 
@@ -341,8 +344,33 @@ class Script(scripts.Script):
                                 
                         else:
                             break;
-                    
+
+                    if save_to_webui:
+                        g = images.image_grid(imgs[idxStart:idxStart+toProcessPrompts])
+                        if setting:
+                            g = applyTitle(g, setting["SettingName"])
+                        imgsSettingGrid.append(g)
+            
+
             infotx = f"Finished! Created {len(all_prompts)} images"  
+            if save_to_webui:
+                imgs = imgsSettingGrid+imgs 
+                all_prompts = ['']*len(imgsSettingGrid) + all_prompts
+                infotexts = ['']*len(imgsSettingGrid) + infotexts
+                all_seeds = ['']*len(imgsSettingGrid) + all_seeds
+
             print('\n\n' + infotx)
-            print(''.ljust(len(infotx), '-') + '\n')               
+            print(''.ljust(len(infotx), '-') + '\n')      
+
         return Processed(p, imgs, seedInit, "", all_prompts=all_prompts, infotexts=infotexts, all_seeds=all_seeds)
+
+def applyTitle(img:Image.Image, title):
+    txtSize = 30
+    i=Image.new('RGB', (img.width, img.height + txtSize+5),color='white')
+    i.paste(img,box=(0, txtSize+5))
+    ii = ImageDraw.Draw(i)
+    fnt = ImageFont.truetype("arial.ttf", txtSize)
+    ii.text((0, 0), title, 'black', fnt)
+    return i
+
+
