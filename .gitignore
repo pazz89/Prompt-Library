@@ -8,3 +8,5 @@
 
 pipreqs --force
 *.pyc
+*.png
+run.bat
