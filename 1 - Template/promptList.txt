@@ -1,1 +1,0 @@
-[{"cat": {"Style": "Art", "Negative": "Ugly"}, "prompt": "painted by a master painter", "negative_prompt": "ugly, disfigured"}, {"cat": {"Style": "Photography", "Negative": "Ugly"}, "prompt": "photographed by a master photographer", "negative_prompt": "ugly, disfigured"}]

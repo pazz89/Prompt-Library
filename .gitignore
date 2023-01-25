@@ -4,7 +4,7 @@
 */previews.json
 */promptList.txt
 
-!1-Template/config.yaml
+!1 - Template/config.yaml
 
 pipreqs --force
 *.pyc
