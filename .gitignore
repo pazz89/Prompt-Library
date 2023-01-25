@@ -8,3 +8,4 @@
 
 pipreqs --force
 *.pyc
+*.png
