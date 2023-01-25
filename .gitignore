@@ -1,3 +1,10 @@
+*/_previews
+*/config.yaml
+*/previews.yaml
+*/previews.json
+*/promptList.txt
+
+!1-Template/config.yaml
 
 pipreqs --force
 *.pyc
