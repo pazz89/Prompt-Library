@@ -11,3 +11,6 @@ pipreqs --force
 *.png
 run.bat
 venv/
+build/
+dist/
+promptLibrary.spec
